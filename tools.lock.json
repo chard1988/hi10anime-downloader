@@ -1,0 +1,17 @@
+{
+  "syft": {
+    "version": "v1.57.0",
+    "repository": "anchore/syft",
+    "sha256": "9c077a7d43029b3b13e98a8db720661e700c4d58db6352153a06395ae4a2a704"
+  },
+  "grype": {
+    "version": "v0.121.2",
+    "repository": "anchore/grype",
+    "sha256": "9c8965ced9df657e5e851c14021bae838802f711edd7a48f9bc3c923a8d28f12"
+  },
+  "checkout": {
+    "sha": "d23441a48e516b6c34aea4fa41551a30e30af803",
+    "type": "commit",
+    "url": "https://api.github.com/repos/actions/checkout/git/commits/d23441a48e516b6c34aea4fa41551a30e30af803"
+  }
+}

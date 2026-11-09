@@ -1,0 +1,26 @@
+services:
+  hi10:
+    build: .
+    image: hi10-downloader:beta
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 75s
+    shm_size: 1gb
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      HI10_WEB_PASSWORD: ${HI10_WEB_PASSWORD:?Set HI10_WEB_PASSWORD in a private .env file}
+      HI10_WEB_ORIGIN: ${HI10_WEB_ORIGIN:-}
+      HI10_ALLOWED_HOSTS: ${HI10_ALLOWED_HOSTS:-}
+    volumes:
+      - ./appdata:/config
+      - ./downloads:/downloads
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

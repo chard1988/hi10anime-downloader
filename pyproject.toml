@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools==84.2.1", "wheel==0.48.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hi10-downloader"
+version = "0.3.0b1"
+description = "Session-based Hi10 project scanner and MKV downloader"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = ["beautifulsoup4>=4.12,<5", "httpx>=0.27,<1", "playwright>=1.49,<2", "waitress==3.0.2"]
+
+[project.scripts]
+hi10 = "hi10_downloader.cli:main"
+hi10-web = "hi10_downloader.web:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hi10_downloader = ["static/*"]

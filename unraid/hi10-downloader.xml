@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>hi10-downloader</Name>
+  <Repository>hi10-downloader:local</Repository>
+  <Registry/>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Overview>Persistent web interface for Hi10: capture or import a login session, browse and scan projects, select video quality, and track downloads. Build or load hi10-downloader:local before installation; this image is not published to Community Applications.</Overview>
+  <Category>Downloaders:</Category>
+  <Beta>true</Beta>
+  <License>MIT</License>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <ExtraParams>--init --shm-size=1g --stop-timeout=75</ExtraParams>
+  <Config Name="Web Interface Port" Target="8080" Default="8080" Mode="tcp" Description="Port for the Hi10 web interface." Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Web Interface Password" Target="HI10_WEB_PASSWORD" Default="" Mode="" Description="Password to unlock the app, separate from Hi10 credentials. Leave blank to generate one in appdata/web-password.json." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="WordPress Username" Target="HI10_USERNAME" Default="" Mode="" Description="Optional Hi10 username/email. Used with the password when you open the login browser; you can also enter credentials in the web UI." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="WordPress Password" Target="HI10_PASSWORD" Default="" Mode="" Description="Optional Hi10 password. Used only for browser login. Complete CAPTCHA and save the session in the web UI. This value is stored in the unRAID template and container environment." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="Download Location" Target="/downloads" Default="/mnt/user/downloads/hi10anime" Mode="rw" Description="Host folder for project folders and downloaded MKV files. Must be writable by UID 99 and GID 100." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/downloads/hi10anime</Config>
+  <Config Name="Appdata" Target="/config" Default="/mnt/user/appdata/hi10-downloader" Mode="rw" Description="Private persistent state, backups and session cookies. Keep writable by UID 99 and GID 100." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/hi10-downloader</Config>
+</Container>

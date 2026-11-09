@@ -1,0 +1,37 @@
+Hi10 Download Manager — private beta source bundle (MIT)
+
+No stable registry image or CA listing has been published. This source bundle
+builds a pinned-input Linux/amd64 image on your unRAID server. It includes no
+credentials, sessions, queue state, or downloaded videos.
+
+1. Copy hi10-unraid.tar.gz to your server, for example:
+   scp hi10-unraid.tar.gz root@YOUR_UNRAID_SERVER:/mnt/user/appdata/
+2. In the unRAID Terminal:
+   mkdir -p /mnt/user/appdata/hi10-installer
+   tar -xzf /mnt/user/appdata/hi10-unraid.tar.gz -C /mnt/user/appdata/hi10-installer
+   cd /mnt/user/appdata/hi10-installer/hi10-unraid
+   sh install.sh
+3. For a new installation: Docker -> Add Container -> hi10-downloader.
+   Set password, appdata, downloads, and an available port. Keep Bridge networking.
+4. For an update: stop jobs and back up ALL appdata plus hi10-manifest.json first.
+   Rebuild, then recreate the existing container using its saved mappings.
+   If Apply is disabled, change an update-marker environment variable and Apply.
+   Keep Repository hi10-downloader:local. Set Extra Parameters to include
+   --init --shm-size=1g --stop-timeout=75. Hard-refresh the WebUI afterward.
+
+Both mapped folders must be writable by UID 99/GID 100. Existing folders and
+templates retain their settings/ownership. The installer does not start downloads.
+Generated interface passwords are saved privately in web-password.json and are
+not printed in logs. First visit after upgrading the app-cookie format requires
+one unlock; saved Hi10 cookies remain reusable. Complete CAPTCHA yourself or
+import a desktop Playwright session if login cannot run in sandboxed Chromium.
+
+The beta uses Waitress, revocable app sessions, login throttling, restricted outbound
+networking, bounded downloads, server-side queue pagination, and recoverable state
+journaling. /healthz reports local service health, not website access. Protect all
+appdata backups: .bak/.corrupt/journal files can contain credentials.
+
+Downgrade only after restoring the COMPLETE pre-upgrade appdata and manifest backup.
+Use one service or CLI process per appdata/download directory. This source installer
+does not prove public release readiness or integrated Tailscale compatibility.
+See README.md and the administration/release guides in the source repository.

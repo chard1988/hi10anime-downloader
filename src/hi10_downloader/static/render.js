@@ -1,0 +1,58 @@
+function render() {
+  const session = state.session, busy = operationsBusy() || !!pendingAction;
+  const libraryBusy = state.job.running || !!pendingAction;
+  const downloadJob = state.download_job || {running:false};
+  const checking = session.status === 'checking' || state.job.running && state.job.kind === 'restore';
+  const banner = $('connection-status');
+  banner.hidden = (!pendingAction || pendingAction.path.startsWith('/api/downloads/')) && !checking;
+  const feedback = pendingAction?.label || (state.job.kind === 'restore' ? state.job.message || 'Restoring saved data…' : 'Checking saved session…');
+  if (!banner.hidden) banner.replaceChildren(node('span',undefined,'button-spinner'), node('span',feedback));
+  if (browserOpen && !state.browser_active && !(state.job.running && ['login','session'].includes(state.job.kind))) {browserOpen=false; $('browser-panel').hidden=true; $('credentials-form').hidden=true;}
+  $('total-projects').textContent = state.projects.length;
+  $('nav-count').textContent = state.projects.length;
+  $('queue-count').textContent = state.pending_count;
+  const scanned = state.projects.filter(p => p.scanned).length;
+  $('total-files').textContent = scanned ? state.projects.reduce((sum,p) => sum + (p.remaining || 0),0) : '—';
+  $('scan-note').textContent = scanned ? `across ${scanned} scanned project${scanned === 1 ? "" : "s"}` : 'Scan projects to detect files';
+  $('default-quality').value = state.default_quality;
+  $('default-quality').disabled = busy;
+  $('account-status').textContent = checking ? 'Checking saved session…' : session.status === 'error' ? 'Connection unavailable' : session.connected ? 'Session connected' : session.saved ? 'Saved session needs attention' : 'Connect account';
+  $('side-status').textContent = session.connected ? 'Account connected' : 'Not connected';
+  document.querySelectorAll('.status-dot').forEach(dot => dot.classList.toggle('connected', session.connected));
+  $('session-title').textContent = checking ? 'Checking saved session…' : session.connected ? 'Your account is connected' : session.saved ? 'Session saved · verification needed' : 'No session saved';
+  $('session-message').textContent = session.message;
+  $('connect-banner').hidden = session.connected;
+  if (!session.connected) {$('connect-banner').querySelector('strong').textContent = checking ? 'Restoring your saved session' : session.saved ? 'Your session is saved on the server' : 'Your library starts with a connection'; $('connect-banner').querySelector('p').textContent = checking ? 'Verification is running in the background. You do not need to import again.' : session.message;}
+  $('session-dot').closest('.session-status').classList.toggle('checking', checking);
+  $('destination').textContent = state.output;
+  $('refresh').disabled = busy || !session.connected;
+  $('scan-all').disabled = libraryBusy || !session.connected || !state.projects.length;
+  for (const id of ['verify-session','open-browser','save-session','forget-session','session-file']) $(id).disabled = busy;
+  $('verify-session').disabled = busy || !session.saved;
+  $('forget-session').disabled = busy || !session.saved;
+  $('save-details').disabled = busy;
+  $('stop-downloads').disabled = !downloadJob.running || !!pendingAction;
+  $('start-downloads').disabled = !canStartDownloads() || !!pendingAction || !state.pending_count;
+  $('queue-summary').textContent = `${state.pending_count} file${state.pending_count === 1 ? '' : 's'} waiting · ${state.download_total} entries`;
+  const scheduled = state.schedule.starts_at;
+  $('queue-message').hidden=!scheduled;
+  $('queue-message').textContent = scheduled ? `Scheduled for ${new Date(scheduled * 1000).toLocaleString()}. ${state.schedule.message}` : downloadJob.running ? 'Downloads are running on your server.' : 'Files stay queued until you click Start downloads or schedule a start.';
+  $('schedule-downloads').disabled = busy || !state.pending_count;
+  $('schedule-time').disabled = busy;
+  $('cancel-schedule').hidden = !scheduled; $('cancel-schedule').disabled = busy;
+  $('clear-completed').disabled = busy || !state.download_total;
+  $('download-page').textContent = `Page ${state.download_page + 1} of ${(state.download_page_total || 1)}`;
+  $('previous-downloads').disabled = state.download_page === 0;
+  $('next-downloads').disabled = state.download_page + 1 >= (state.download_page_total || 1);
+  $('job-bar').hidden = !libraryBusy && !state.job.error && !state.job.kind;
+  $('job-spinner').hidden = !state.job.running;
+  $('stop-job').hidden = !state.job.running || state.job.kind !== 'scan';
+  $('stop-job').disabled = !!pendingAction;
+  $('job-kind').textContent = state.job.error ? 'Needs attention' : state.job.running ? ({scan:'Scanning project pages',download:'Downloading your selection',refresh:'Loading library',login:'Opening login browser',session:'Verifying session',restore:'Restoring saved data',preferences:'Updating library preferences'}[state.job.kind] || 'Working') : 'Finished';
+  $('job-message').textContent = state.job.error || state.job.message;
+  $('job-progress').textContent = state.job.total ? `${state.job.done} / ${state.job.total}` : '';
+  const jobError = [state.job.error, downloadJob.error].filter(Boolean).join(' ');
+  if (jobError && jobError !== lastJobError) toast(jobError);
+  lastJobError = jobError;
+  renderProjects(); renderDownloads(); renderDownloadStartProgress();
+}

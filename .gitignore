@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.egg-info/
+.hi10/
+downloads/
+plan.json
+.pytest_cache/
+hi10.env
+dist/
+.tools/
+artifacts/
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
+appdata/

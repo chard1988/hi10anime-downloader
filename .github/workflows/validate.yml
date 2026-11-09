@@ -1,0 +1,66 @@
+name: Validate beta candidate (no publishing)
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6, reviewed in tools.lock.json
+        with:
+          persist-credentials: false
+      - name: Build exact test image with metadata
+        env:
+          BUILDX_METADATA_PROVENANCE: max
+        run: |
+          mkdir -p artifacts
+          docker buildx build --load --metadata-file artifacts/build-metadata.json --build-arg VCS_REF="$GITHUB_SHA" --build-arg SOURCE_URL="https://github.com/$GITHUB_REPOSITORY" -t hi10-downloader:beta .
+      - name: Python tests in release runtime
+        run: |
+          docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" -v "$PWD/unraid:/unraid:ro" hi10-downloader:beta -m unittest discover -s /tests -q
+          docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" hi10-downloader:beta /tests/benchmark.py
+      - name: JavaScript checks
+        run: |
+          for script in src/hi10_downloader/static/*.js; do node --check "$script"; done
+          node tests/test_polling.cjs
+          node tests/test_ui_state.cjs
+      - name: Browser fixture in release image
+        run: docker run --rm --shm-size=1g --entrypoint python -v "$PWD/tests:/tests:ro" hi10-downloader:beta /tests/e2e.py
+      - name: Sandboxed browser host compatibility
+        run: docker run --rm --shm-size=1g --cap-drop=ALL --security-opt=no-new-privileges --entrypoint python -v "$PWD/tests:/tests:ro" hi10-downloader:beta /tests/browser_sandbox.py
+      - name: Container lifecycle validation
+        if: always()
+        run: |
+          python3 scripts/container_smoke.py --image hi10-downloader:beta
+          python3 scripts/container_smoke.py --image hi10-downloader:beta --user 1000:1000
+      - name: Hash-verified SBOM and image scan
+        if: always()
+        run: |
+          python3 scripts/install_audit_tools.py
+          docker save -o artifacts/image.tar hi10-downloader:beta
+          .tools/syft docker-archive:artifacts/image.tar -o cyclonedx-json=artifacts/sbom.cdx.json
+          .tools/grype sbom:artifacts/sbom.cdx.json --fail-on high -o json > artifacts/vulnerabilities.json
+      - name: Source distribution validation
+        if: always()
+        run: |
+          python3 scripts/check_distribution.py
+          python3 unraid/package.py
+          python3 scripts/check_bundle.py
+      # Deliberately no registry credentials, package-write permission, publishing,
+      # signing identity or CA submission. Configure those only after repo creation.
+      - name: Retain reports even if a validation gate fails
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: beta-validation-reports
+          path: |
+            artifacts/*.json
+            artifacts/*.txt
+          retention-days: 14
