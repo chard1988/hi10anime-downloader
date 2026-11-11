@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Desktop login can explicitly use installed Chrome/Edge with sandboxing enabled.
+- Browser startup/navigation failures produce safe CLI errors and clean up the browser.
+
 ## 0.3.0b1 — unreleased private beta
 
 - Production Waitress WSGI boundary with bounded HTTP resources and request IDs.

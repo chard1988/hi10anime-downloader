@@ -46,18 +46,40 @@ def fetch_page(client: httpx.Client, url: str) -> str:
 
 
 def login(args) -> None:
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import Error as BrowserError, sync_playwright
     with ServiceLocks(args.state.parent, args.state.parent), sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=False, chromium_sandbox=True)
-        context = browser.new_context()
-        page = context.new_page()
-        page.goto(BASE + "/wp-login.php")
-        input("Complete login in the browser, then press Enter here to verify and save the session: ")
-        page.goto(LIST_URL)
-        page.locator("#urlContainer").wait_for(timeout=30000)
-        state = context.storage_state()
-        save_json(args.state, {'cookies': [c for c in state['cookies'] if c['domain'].lstrip('.') == 'hi10anime.com'], 'origins': []})
-        browser.close()
+        options = {'headless': False, 'chromium_sandbox': True}
+        selected = getattr(args, 'browser', 'chromium')
+        if selected != 'chromium':
+            options['channel'] = selected
+        try:
+            browser = playwright.chromium.launch(**options)
+        except BrowserError as exc:
+            if any(marker in str(exc).lower() for marker in ('sandboxing failed', 'no usable sandbox', 'apparmor')):
+                raise ValueError(
+                    'The browser sandbox could not start. On Ubuntu, try an installed Google Chrome '
+                    'with: hi10 --state PATH login --browser chrome. Sandboxing remains enabled. '
+                    'See docs/ADMIN_GUIDE.md for desktop login troubleshooting.'
+                ) from None
+            raise ValueError(
+                f'Could not start the {selected} login browser. Run this command on a graphical desktop. '
+                'For chromium, install it with: python -m playwright install chromium. '
+                'For chrome or msedge, install that browser separately. See docs/ADMIN_GUIDE.md.'
+            ) from None
+        try:
+            try:
+                context = browser.new_context()
+                page = context.new_page()
+                page.goto(BASE + "/wp-login.php")
+                input("Complete login in the browser, then press Enter here to verify and save the session: ")
+                page.goto(LIST_URL)
+                page.locator("#urlContainer").wait_for(timeout=30000)
+                state = context.storage_state()
+                save_json(args.state, {'cookies': [c for c in state['cookies'] if c['domain'].lstrip('.') == 'hi10anime.com'], 'origins': []})
+            except BrowserError:
+                raise ValueError('Login browser navigation or session capture failed. Complete login and retry; no new session was saved.') from None
+        finally:
+            browser.close()
     print(f"Saved session to {args.state}. Treat this file like a password.")
 
 
@@ -242,7 +264,10 @@ def main() -> int:
     parser.add_argument('--version', action='version', version=__version__)
     parser.add_argument("--state", type=Path, default=Path(".hi10/session.json"), help="Saved browser session (sensitive)")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("login", help="Log in manually using a visible browser").set_defaults(func=login)
+    login_parser = commands.add_parser("login", help="Log in manually using a visible browser")
+    login_parser.add_argument('--browser', choices=('chromium', 'chrome', 'msedge'), default='chromium',
+                              help='Bundled Chromium, or an installed Chrome/Edge; sandboxing stays enabled')
+    login_parser.set_defaults(func=login)
     scan_parser = commands.add_parser("scan", help="Create a reviewable JSON download plan")
     scan_parser.add_argument("--project", action="append", help="Scan only this project URL; repeatable")
     scan_parser.add_argument("--limit", type=int, help="Limit the number of projects scanned")

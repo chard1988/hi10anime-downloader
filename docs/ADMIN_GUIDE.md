@@ -122,3 +122,29 @@ not a throughput promise or multi-day soak substitute.
 The deprecated one-shot container runner no longer submits credentials automatically.
 Use web login or desktop session import. CLI scan/download/login now also acquire
 resource locks; do not run them while the service owns the same directory.
+
+## Desktop session capture on Ubuntu
+
+If `hi10 login` reports `No usable sandbox` or `Chromium sandboxing failed`,
+Ubuntu's AppArmor policy may be blocking the downloaded Chromium executable.
+The CLI supports an explicitly selected, separately installed Google Chrome or
+Microsoft Edge while keeping Chromium sandboxing enabled:
+
+```sh
+.venv/bin/hi10 --state "$HOME/Downloads/hi10-session/session.json" login --browser chrome
+```
+
+Complete login/CAPTCHA in the new browser window, return to the terminal and press
+Enter. Then import `Downloads/hi10-session/session.json` through Account & session
+in the server WebUI. This is a new temporary browser context; it does not access
+an existing personal Chrome profile or copy its saved passwords. A graphical
+desktop is required. Use `--browser msedge` for an installed Edge, or omit the
+option to use the downloaded Chromium. The command does not install branded
+browsers automatically and never retries with sandboxing disabled.
+
+Chromium documents Ubuntu's executable-path AppArmor restrictions in its
+[AppArmor guide](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md).
+Playwright documents the supported installed-browser channels in its
+[browser guide](https://playwright.dev/python/docs/browsers#google-chrome--microsoft-edge).
+This desktop option does not change the container's embedded login browser or
+resolve its separately recorded hardened-runtime compatibility gate.
