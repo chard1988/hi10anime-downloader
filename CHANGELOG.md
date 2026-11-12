@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Export the current Hi10 Chrome/Edge session using a site-scoped local extension, including HttpOnly cookies, without another login.
+
 - Desktop login can explicitly use installed Chrome/Edge with sandboxing enabled.
 - Browser startup/navigation failures produce safe CLI errors and clean up the browser.
 

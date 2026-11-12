@@ -1,0 +1,23 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const {toStorageState} = require('../browser-extension/hi10-session-export/exporter.js');
+const cookie = {name:'wordpress_logged_in_fixture',value:'fixture-only',domain:'.hi10anime.com',path:'/',secure:true,httpOnly:true,session:true,sameSite:'lax'};
+const result = toStorageState([cookie,{...cookie,domain:'other.invalid'},{...cookie,domain:'sub.hi10anime.com'},
+  {...cookie,session:false,expirationDate:99},{...cookie,partitionKey:{topLevelSite:'https://other.invalid'}}],100);
+assert.equal(result.cookies.length,1);
+assert.equal(result.cookies[0].httpOnly,true);
+assert.equal(result.cookies[0].expires,-1);
+assert.equal(result.cookies[0].sameSite,'Lax');
+assert.deepEqual(result.origins,[]);
+assert.equal(toStorageState([{...cookie,session:false,expirationDate:200,sameSite:'no_restriction'}],100).cookies[0].sameSite,'None');
+assert.throws(()=>toStorageState([]),/No Hi10 cookies/);
+assert.throws(()=>toStorageState(Array(1001).fill(cookie)),/Too many/);
+assert.throws(()=>toStorageState([{...cookie,path:undefined}]),/Invalid Hi10 cookie/);
+const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../browser-extension/hi10-session-export/manifest.json')));
+assert.deepEqual(manifest.permissions,['cookies']);
+assert.deepEqual(manifest.host_permissions,['https://hi10anime.com/*']);
+assert.match(manifest.content_security_policy.extension_pages,/connect-src 'none'/);
+assert.equal(manifest.background,undefined);
+assert.equal(manifest.content_scripts,undefined);
+console.log('Session exporter checks passed: HttpOnly/session conversion, host isolation, expiry, limits and permission scope.');

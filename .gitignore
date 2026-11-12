@@ -15,3 +15,6 @@ artifacts/
 playwright-report/
 test-results/
 appdata/
+
+# Browser session exports contain authentication credentials.
+session*.json

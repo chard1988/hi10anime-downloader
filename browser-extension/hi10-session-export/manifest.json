@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Hi10 Session Export",
+  "version": "0.1.0",
+  "description": "Save your existing Hi10 browser session as a local Playwright JSON file.",
+  "permissions": [
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://hi10anime.com/*"
+  ],
+  "action": {
+    "default_title": "Export Hi10 session",
+    "default_popup": "popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none';"
+  }
+}

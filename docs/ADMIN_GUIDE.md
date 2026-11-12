@@ -148,3 +148,20 @@ Playwright documents the supported installed-browser channels in its
 [browser guide](https://playwright.dev/python/docs/browsers#google-chrome--microsoft-edge).
 This desktop option does not change the container's embedded login browser or
 resolve its separately recorded hardened-runtime compatibility gate.
+
+## Import an existing normal-browser session
+
+If a new automated browser login fails while your regular browser is already
+signed in, use the local [Hi10 session exporter](../browser-extension/hi10-session-export/README.md).
+Load it in that same Chrome/Edge profile and explicitly export the existing
+Hi10 cookies to `session.json`; then use Account & session → Choose session JSON
+in the downloader. This includes HttpOnly login cookies and avoids another
+login attempt. The local helper requests cookie access only to Hi10 and sends
+no data over the network. You grant that access when loading the extension.
+No Docker update is needed to import the standard Playwright storage-state file.
+
+The chat’s in-app browser is a separate browser context; its connection does not
+provide access to your personal Chrome session. Do not use `document.cookie` or
+Save page as to capture an authenticated session: protected HttpOnly cookies are
+not available to page JavaScript. The app still verifies the imported session;
+expiration and site/browser/IP binding can affect reuse.

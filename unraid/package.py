@@ -29,6 +29,8 @@ def main():
         'INSTALL.txt': root / 'unraid/INSTALL.txt',
         'hi10-downloader.xml': root / 'unraid/hi10-downloader.xml',
     }
+    sources.update({str(path.relative_to(root)): path for path in (root / 'browser-extension' / 'hi10-session-export').iterdir()
+                    if path.is_file() and path.name in {'manifest.json', 'popup.html', 'popup.css', 'popup.js', 'exporter.js', 'README.md'}})
     sources.update({str(path.relative_to(root)): path for path in (root / 'src').rglob('*')
                     if path.is_file() and (path.suffix == '.py' or 'static' in path.parts)
                     and '__pycache__' not in path.parts})

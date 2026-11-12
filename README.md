@@ -43,6 +43,11 @@ Open http://127.0.0.1:8080. Set HI10_WEB_PASSWORD or retrieve the generated pass
 from private `.hi10/web-password.json`. It is not printed in logs. This password is
 separate from your website credentials. Keep the entire appdata directory private.
 
+Already signed in in your normal Chrome/Edge browser? Use the
+[Hi10 session exporter](browser-extension/hi10-session-export/README.md) to save
+that profile’s existing Hi10 cookies, then import its `session.json` in Account &
+session. You do not need another login or a Docker rebuild.
+
 ## Container / unRAID
 
 ```sh
