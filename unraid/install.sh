@@ -1,6 +1,14 @@
 #!/bin/sh
-# Build the source bundle and register its unRAID template. Does not start downloads.
+# Pull the versioned beta image and register its unRAID template. Does not start downloads.
 set -eu
+hi10_build_local=false
+case "${1:-}" in
+    --build-local) hi10_build_local=true ;;
+    --help) printf '%s\n' 'Usage: sh install.sh [--build-local]' 'Default: pull the versioned beta from GHCR. --build-local builds this source bundle instead.'; exit 0 ;;
+    '') ;;
+    *) printf '%s\n' 'Unknown option. Use --help.' >&2; exit 1 ;;
+esac
+hi10_image=ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2
 
 if [ ! -f /etc/unraid-version ]; then
     printf '%s\n' 'Run this script in the unRAID Terminal, not on your desktop.' >&2
@@ -22,8 +30,16 @@ if [ ! -f Dockerfile ]; then
     printf '%s\n' 'Bundle is incomplete. Run the installer from the extracted hi10-unraid bundle.' >&2
     exit 1
 fi
-printf '%s\n' 'Building a fresh image (requires internet access for Python, Chromium, and OS packages)...'
-docker build --pull -t hi10-downloader:local .
+if [ "$hi10_build_local" = true ]; then
+    printf '%s\n' 'Building from source. The result may differ from the published image digest.'
+    docker build --pull -t "$hi10_image" .
+else
+    printf '%s\n' "Pulling $hi10_image..."
+    if ! docker pull "$hi10_image"; then
+        printf '%s\n' 'Image pull failed. Verify network access and that the GitHub package visibility is Public.' 'See docs/UNRAID_INSTALL.md. You may explicitly build this source with --build-local.' >&2
+        exit 1
+    fi
+fi
 
 hi10_template_dir=/boot/config/plugins/dockerMan/templates-user
 hi10_template_path="$hi10_template_dir/my-hi10-downloader.xml"
@@ -49,4 +65,5 @@ printf '%s\n' \
     'Set an app password, download location, appdata location, and an unused web port.' \
     'Both mapped folders must be writable by UID 99 / GID 100.' \
     'Click Apply, then use the container WebUI action.' \
-    'For an existing installation, keep its mappings and recreate it with this local image.'
+    "For an existing installation, keep its mappings and change Repository to $hi10_image." \
+    'Import a session from the browser exporter; hardened embedded login remains a beta limitation.'

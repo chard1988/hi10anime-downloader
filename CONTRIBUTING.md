@@ -11,7 +11,7 @@ network-policy tests because the pinned backend adapter controls DNS pinning.
 Update CHANGELOG.md and migration/recovery notes for state changes. Regenerate
 requirements.lock under Python 3.12 using pip-tools, review its diff, and scan the
 resulting image. Verify any action/scanner/base-image hash changes against the
-upstream source. Keep publishing manual and disabled until repository ownership
-and distribution gates are configured. Use small, reviewable pull requests.
+upstream source. Beta publishing uses the explicit release workflow and recorded owner-approved
+limitations; stable/latest publishing remains disabled until its gates pass. Use small, reviewable pull requests.
 
 Branch and release conventions are documented in [Git-flow and versioning](docs/VERSIONING.md).

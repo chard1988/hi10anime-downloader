@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <CommunityApplications>
-  <Profile>Hi10 Download Manager: an MIT-licensed private-beta project scanner and download queue. This repository is not yet submitted to Community Applications. Public source and support URLs must be configured before submission.</Profile>
+  <Profile>Hi10 Download Manager: an MIT-licensed testing-beta project scanner and download queue. Manual Docker installation is available; this repository has not been submitted to Community Applications.</Profile>
+  <WebPage>https://github.com/chard1988/hi10anime-downloader</WebPage>
+  <Forum>https://github.com/chard1988/hi10anime-downloader/issues</Forum>
+  <Icon>https://raw.githubusercontent.com/chard1988/hi10anime-downloader/master/assets/icon.svg</Icon>
 </CommunityApplications>

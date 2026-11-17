@@ -18,9 +18,11 @@ def main():
         'LICENSE': root / 'LICENSE',
         '.dockerignore': root / '.dockerignore',
         'compose.yaml': root / 'compose.yaml',
+        'compose.build.yaml': root / 'compose.build.yaml',
         'THIRD_PARTY_NOTICES.md': root / 'THIRD_PARTY_NOTICES.md',
         'SECURITY.md': root / 'SECURITY.md',
         'docs/ADMIN_GUIDE.md': root / 'docs/ADMIN_GUIDE.md',
+        'docs/UNRAID_INSTALL.md': root / 'docs/UNRAID_INSTALL.md',
         'docs/RELEASE_GUIDE.md': root / 'docs/RELEASE_GUIDE.md',
         'docs/HARDENING_PROGRESS.md': root / 'docs/HARDENING_PROGRESS.md',
         'docs/VALIDATION_REPORT.md': root / 'docs/VALIDATION_REPORT.md',
@@ -29,6 +31,8 @@ def main():
         'INSTALL.txt': root / 'unraid/INSTALL.txt',
         'hi10-downloader.xml': root / 'unraid/hi10-downloader.xml',
     }
+    sources.update({str(path.relative_to(root)): path for path in (root / 'browser-extension' / 'hi10-session-export').iterdir()
+                    if path.is_file() and path.name in {'manifest.json', 'popup.html', 'popup.css', 'popup.js', 'exporter.js', 'README.md'}})
     sources.update({str(path.relative_to(root)): path for path in (root / 'src').rglob('*')
                     if path.is_file() and (path.suffix == '.py' or 'static' in path.parts)
                     and '__pycache__' not in path.parts})

@@ -2,8 +2,9 @@
 
 ## Supported deployment
 
-This is an MIT-licensed Linux/amd64 private beta with Python 3.12 and a bundled
-Chromium login browser. No stable/public registry image or CA listing is published.
+This is an MIT-licensed Linux/amd64 testing beta with Python 3.12 and a bundled
+Chromium login browser. Versioned beta images use GHCR; no stable image or CA listing
+is published. See UNRAID_INSTALL.md for registry installation and upgrades.
 Use a private LAN/Tailnet or an HTTPS reverse proxy. Default unRAID UID/GID is
 99:100. Other Linux users may specify --user UID:GID with writable config/download
 mounts and a writable HOME. The process never recursively chowns existing mounts.
@@ -13,7 +14,7 @@ Use one service OR CLI process per appdata/download directory.
 
 Build locally with `docker build -t hi10-downloader:beta .`. For Compose, copy
 .env.example to a private .env, set a unique password, create appdata/downloads
-writable by 99:100, and run `docker compose up -d --build`. Compose binds to
+writable by 99:100, and run `docker compose up -d`. Compose binds to
 127.0.0.1 by default; deliberately choose a LAN binding if needed. For unRAID,
 use the source installer and existing template, keeping /config and /downloads.
 Allow 75 seconds for stop. `--init --shm-size=1g` is recommended for Chromium.
@@ -122,3 +123,86 @@ not a throughput promise or multi-day soak substitute.
 The deprecated one-shot container runner no longer submits credentials automatically.
 Use web login or desktop session import. CLI scan/download/login now also acquire
 resource locks; do not run them while the service owns the same directory.
+
+## Desktop session capture on Ubuntu
+
+If `hi10 login` reports `No usable sandbox` or `Chromium sandboxing failed`,
+Ubuntu's AppArmor policy may be blocking the downloaded Chromium executable.
+The CLI supports an explicitly selected, separately installed Google Chrome or
+Microsoft Edge while keeping Chromium sandboxing enabled:
+
+```sh
+.venv/bin/hi10 --state "$HOME/Downloads/hi10-session/session.json" login --browser chrome
+```
+
+Complete login/CAPTCHA in the new browser window, return to the terminal and press
+Enter. Then import `Downloads/hi10-session/session.json` through Account & session
+in the server WebUI. This is a new temporary browser context; it does not access
+an existing personal Chrome profile or copy its saved passwords. A graphical
+desktop is required. Use `--browser msedge` for an installed Edge, or omit the
+option to use the downloaded Chromium. The command does not install branded
+browsers automatically and never retries with sandboxing disabled.
+
+Chromium documents Ubuntu's executable-path AppArmor restrictions in its
+[AppArmor guide](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md).
+Playwright documents the supported installed-browser channels in its
+[browser guide](https://playwright.dev/python/docs/browsers#google-chrome--microsoft-edge).
+This desktop option does not change the container's embedded login browser or
+resolve its separately recorded hardened-runtime compatibility gate.
+
+## Import an existing normal-browser session
+
+If a new automated browser login fails while your regular browser is already
+signed in, use the local [Hi10 session exporter](../browser-extension/hi10-session-export/README.md).
+Load it in that same Chrome/Edge profile and explicitly export the existing
+Hi10 cookies to `session.json`; then use Account & session → Choose session JSON
+in the downloader. This includes HttpOnly login cookies and avoids another
+login attempt. The local helper requests cookie access only to Hi10 and sends
+no data over the network. You grant that access when loading the extension.
+No Docker update is needed to import the standard Playwright storage-state file.
+
+The chat’s in-app browser is a separate browser context; its connection does not
+provide access to your personal Chrome session. Do not use `document.cookie` or
+Save page as to capture an authenticated session: protected HttpOnly cookies are
+not available to page JavaScript. The app still verifies the imported session;
+expiration and site/browser/IP binding can affect reuse.
+
+## Alternative download links
+
+Link checking runs automatically at download time for files with multiple known
+links at the selected resolution. Episodes, movies and other single-file projects
+use the same behavior. Alternatives are grouped by the existing file identity,
+section/season and quality; different episodes, editions and encodes stay separate.
+The selected filename and destination remain stable.
+
+Each alternative receives a streamed GET requesting `Range: bytes=0-3`. An active
+response must serve a Matroska/EBML prefix, rather than merely an HTTP 200 login,
+HTML error or challenge page. Both valid partial responses and servers ignoring
+Range with HTTP 200 are supported; the stream closes after reading the prefix.
+Probes use the same authenticated client, redirect limits, public-address policy
+and cookie-domain restrictions as downloads. No HEAD support is required.
+
+All alternatives are checked sequentially, then the first working one is used.
+If that mirror fails during transfer, another validated same-quality alternative
+can be tried. Full download integrity and disk/size/time limits still apply.
+A prefix probe proves current availability only, not that the entire transfer will
+succeed. If no alternative works, the item fails with counts/error categories;
+**the link checker never falls back to a lower resolution**. Failed links are retained for
+future retries rather than permanently blacklisted.
+
+Files with one link have no extra request. Explicitly edited queue URLs stay
+authoritative and bypass alternative selection. Existing queues reuse alternatives
+from cached scan data when available. Rescan a project to refresh changed upstream
+links; adding it to the queue again refreshes pending records without duplicates.
+Older CLI plans can reuse their recorded variants, without changing queued quality.
+
+Link-check progress and the final count are shown in expanded queue-row details.
+View download link uses the chosen mirror after selection. Already downloaded files
+can be verified against their manifest if its source is any known same-quality
+mirror, without probing or downloading again.
+
+Resource limits: at most 32 alternative links per file, a 60-second elapsed checking
+budget (checked between probes and prefix chunks), and 5-second connect/read
+inactivity timeouts. Redirects retain the client's existing five-hop limit.
+Cancellation is checked between probes and prefix chunks. Timeouts and HTTP errors
+mean unavailable during this check, not proof that a URL is permanently dead.

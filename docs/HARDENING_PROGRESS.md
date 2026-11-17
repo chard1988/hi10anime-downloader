@@ -1,5 +1,8 @@
 # Distribution hardening progress
 
+Historical baseline: current beta image reports are attached to the versioned
+GitHub prerelease. See [the current install guide](UNRAID_INSTALL.md).
+
 Updated 2026-11-09. The readiness audit records the earlier baseline. This document
 tracks the changes since that audit. Version 0.3.0b1 remains an unreleased private
 beta. The owner selected MIT; LICENSE contains that license. No repository, image

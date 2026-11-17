@@ -1,8 +1,10 @@
 # Hi10 Download Manager
 
 A self-hosted project scanner and MKV download queue, with a web interface and CLI.
-**0.3.0b1 is an unreleased private beta**, undergoing distribution hardening. No
-stable image, public registry repository, or Community Applications listing exists.
+**0.3.0-beta.2 is a testing prerelease**, with disclosed security and embedded-browser
+compatibility limits. It is not a stable release or Community Applications listing.
+See the [beta release](https://github.com/chard1988/hi10anime-downloader/releases/tag/v0.3.0-beta.2)
+for the image, installation files and exact-image validation reports.
 
 ## Features
 
@@ -17,6 +19,8 @@ stable image, public registry repository, or Community Applications listing exis
   alongside one sequential download batch, and stop them independently.
 - Group queue files under expandable projects. Expand files for destination/errors,
   edit expired links, retry individual files, filter status and apply bulk actions.
+- Before downloading a file with multiple same-quality links, check the alternatives
+  and choose a working mirror. Keep the selected quality if every mirror fails.
 - Files use private manifests, checksums, temporary downloads and completion receipts.
   Existing untracked files are preserved. Interrupted transfers currently restart
   from the beginning; byte-range resume is not implemented.
@@ -43,40 +47,45 @@ Open http://127.0.0.1:8080. Set HI10_WEB_PASSWORD or retrieve the generated pass
 from private `.hi10/web-password.json`. It is not printed in logs. This password is
 separate from your website credentials. Keep the entire appdata directory private.
 
+Already signed in in your normal Chrome/Edge browser? Use the
+[Hi10 session exporter](browser-extension/hi10-session-export/README.md) to save
+that profile’s existing Hi10 cookies, then import its `session.json` in Account &
+session. You do not need another login or a Docker rebuild.
+
 ## Container / unRAID
 
+Published beta image:
+
 ```sh
-docker build -t hi10-downloader:beta .
+docker pull ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2
 ```
 
-The image runs as UID 99/GID 100, uses `/config` and `/downloads`, and exposes port
-8080. Use `--init --shm-size=1g --stop-timeout=75`. Both mounted folders must be
-writable by the process identity. Other UID/GID values can be supplied through
-Docker's `--user` option with appropriate directory ownership and writable HOME.
-No existing host folder is recursively chowned.
+See [unRAID install/upgrade instructions](docs/UNRAID_INSTALL.md). Existing users
+can edit Repository and keep their appdata/download mappings; uninstalling is not
+required. Back up the complete appdata and download manifest before upgrading.
+The package owner must make the new GHCR package Public once before anonymous
+pulls work. Only the beta/versioned tags are published; no latest/stable tag exists.
 
-For Compose, create writable `appdata`/`downloads`, copy `.env.example` to a private
-`.env`, set a unique password and run `docker compose up -d --build`. The provided
-Compose file binds to localhost by default. See [administration](docs/ADMIN_GUIDE.md)
-for reverse-proxy settings and LAN access.
+The image runs as UID 99/GID 100, uses `/config` and `/downloads`, exposes port
+8080, and supports a documented `--user` override with writable mounts/HOME.
+Use `--init --shm-size=1g --stop-timeout=75 --cap-drop=ALL --security-opt=no-new-privileges`.
+No existing host folder is recursively chowned. Use the browser-session exporter
+and import JSON; hardened embedded login remains a beta compatibility limitation.
 
-For unRAID source installations, use `unraid/package.py` to produce the installer
-bundle, transfer it to the server and run its `install.sh`. It builds the local
-`hi10-downloader:local` image and preserves existing templates. Stop/recreate the
-existing container with the same `/config` and `/downloads` mappings. Set the stop
-timeout to 75 seconds. If Apply is disabled, increment an innocuous update-marker
-variable to make the template change concrete. Hard-refresh the WebUI afterward.
+For Compose, create writable appdata/downloads, copy `.env.example` to a private
+`.env`, set a unique app password and run `docker compose up -d`. The provided
+Compose file binds to localhost. To build locally instead, use
+`docker compose -f compose.yaml -f compose.build.yaml up -d --build`.
+A local build can differ from the published digest.
 
-**Before upgrading:** stop jobs and back up all appdata plus hi10-manifest.json.
-Do not downgrade state in place: restore the complete pre-upgrade backup before
-running an older image. The new revocable app-cookie format requires one unlock;
-website session imports remain available. A pending transaction is replayed before
-state is loaded after a crash. See the full recovery/rollback guide below.
+The verified source bundle's `install.sh` pulls the published image and installs
+an unRAID template, while preserving existing templates and data. Its explicit
+`--build-local` option is for source testing. See the guide for upgrades, backup,
+rollback and choosing an unused host port. A prior state format may require one
+unlock after upgrade; website sessions are retained and can be verified/imported.
 
-The embedded browser requires working Chromium sandbox support. If the host blocks
-sandboxed Chromium, import a session captured on a desktop. Do not run the entire
-container privileged to make login work. Integrated unRAID Tailscale hook support
-is not yet advertised as validated; host Tailscale is a separate deployment option.
+Integrated unRAID Tailscale hooks and ARM are not advertised as validated. Use a
+private LAN/Tailnet; do not enable Privileged or disable sandboxing to make login work.
 
 ## Operation
 
@@ -109,7 +118,7 @@ the chosen time. Closing the browser does not cancel background work.
 
 ```sh
 .venv/bin/python -m unittest discover -s tests -q
-node --check src/hi10_downloader/static/app.js
+for script in src/hi10_downloader/static/*.js; do node --check "$script"; done
 node tests/test_polling.cjs
 node tests/test_ui_state.cjs
 .venv/bin/python tests/benchmark.py
@@ -128,6 +137,7 @@ locks under Python 3.12, including `--allow-unsafe` for pinned build dependencie
 - [Security reporting](SECURITY.md), [contributing](CONTRIBUTING.md), [changelog](CHANGELOG.md)
 - [MIT license](LICENSE), [third-party notices](THIRD_PARTY_NOTICES.md)
 
-CI is prepared locally and deliberately does not publish images or submit CA apps.
-Repository ownership, actual public URLs, a reporting channel and stable release
-approval remain owner-controlled distribution steps.
+The beta release workflow tests and publishes only explicit beta refs to GHCR and
+GitHub prereleases. Strict stable-readiness checks remain separate; beta publication
+does not waive their findings. CA submission and stable/latest publishing remain
+disabled. See [the release procedure](docs/RELEASE_GUIDE.md).

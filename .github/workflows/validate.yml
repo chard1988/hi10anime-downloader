@@ -1,7 +1,8 @@
-name: Validate beta candidate (no publishing)
+name: Strict stable-readiness checks
 on:
   pull_request:
   push:
+    branches: [master, develop]
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,15 +25,20 @@ jobs:
           docker buildx build --load --metadata-file artifacts/build-metadata.json --build-arg VCS_REF="$GITHUB_SHA" --build-arg SOURCE_URL="https://github.com/$GITHUB_REPOSITORY" -t hi10-downloader:beta .
       - name: Python tests in release runtime
         run: |
-          docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" -v "$PWD/unraid:/unraid:ro" hi10-downloader:beta -m unittest discover -s /tests -q
+          docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" -v "$PWD/unraid:/unraid:ro" -v "$PWD/scripts:/scripts:ro" hi10-downloader:beta -m unittest discover -s /tests -q
           docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" hi10-downloader:beta /tests/benchmark.py
       - name: JavaScript checks
         run: |
           for script in src/hi10_downloader/static/*.js; do node --check "$script"; done
           node tests/test_polling.cjs
           node tests/test_ui_state.cjs
+          node --check browser-extension/hi10-session-export/exporter.js
+          node --check browser-extension/hi10-session-export/popup.js
+          node tests/test_session_export.cjs
       - name: Browser fixture in release image
         run: docker run --rm --shm-size=1g --entrypoint python -v "$PWD/tests:/tests:ro" hi10-downloader:beta /tests/e2e.py
+      - name: Existing-session extension fixture
+        run: docker run --rm --shm-size=1g --entrypoint python -v "$PWD/tests:/tests:ro" -v "$PWD/browser-extension:/browser-extension:ro" hi10-downloader:beta /tests/e2e_session_export.py
       - name: Sandboxed browser host compatibility
         run: docker run --rm --shm-size=1g --cap-drop=ALL --security-opt=no-new-privileges --entrypoint python -v "$PWD/tests:/tests:ro" hi10-downloader:beta /tests/browser_sandbox.py
       - name: Container lifecycle validation

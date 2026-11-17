@@ -11,10 +11,11 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .parsing import parse_project, project_links, safe_name
+from .parsing import parse_project, project_links, safe_name, mirror_sources
 from .network import client as safe_client, bounded_page
 from .lifecycle import ServiceLocks
 from . import __version__, schema
+from .mirrors import check_mirrors, urls_for, try_next_mirror, MirrorCheckError
 
 BASE = "https://hi10anime.com"
 LIST_URL = BASE + "/projects/all-projects"
@@ -38,7 +39,7 @@ def make_client(state_path: Path) -> httpx.Client:
         cookies.jar.set_cookie(Cookie(0, cookie["name"], cookie["value"], None, False,
             domain, domain.startswith("."), domain.startswith("."), cookie.get("path", "/"),
             True, cookie.get("secure", True), None, True, None, None, {}))
-    return safe_client(cookies=cookies, headers={"User-Agent": "Hi10Downloader/0.3.0-beta.1"})
+    return safe_client(cookies=cookies, headers={"User-Agent": f"Hi10Downloader/{__version__}"})
 
 
 def fetch_page(client: httpx.Client, url: str) -> str:
@@ -46,18 +47,40 @@ def fetch_page(client: httpx.Client, url: str) -> str:
 
 
 def login(args) -> None:
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import Error as BrowserError, sync_playwright
     with ServiceLocks(args.state.parent, args.state.parent), sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=False, chromium_sandbox=True)
-        context = browser.new_context()
-        page = context.new_page()
-        page.goto(BASE + "/wp-login.php")
-        input("Complete login in the browser, then press Enter here to verify and save the session: ")
-        page.goto(LIST_URL)
-        page.locator("#urlContainer").wait_for(timeout=30000)
-        state = context.storage_state()
-        save_json(args.state, {'cookies': [c for c in state['cookies'] if c['domain'].lstrip('.') == 'hi10anime.com'], 'origins': []})
-        browser.close()
+        options = {'headless': False, 'chromium_sandbox': True}
+        selected = getattr(args, 'browser', 'chromium')
+        if selected != 'chromium':
+            options['channel'] = selected
+        try:
+            browser = playwright.chromium.launch(**options)
+        except BrowserError as exc:
+            if any(marker in str(exc).lower() for marker in ('sandboxing failed', 'no usable sandbox', 'apparmor')):
+                raise ValueError(
+                    'The browser sandbox could not start. On Ubuntu, try an installed Google Chrome '
+                    'with: hi10 --state PATH login --browser chrome. Sandboxing remains enabled. '
+                    'See docs/ADMIN_GUIDE.md for desktop login troubleshooting.'
+                ) from None
+            raise ValueError(
+                f'Could not start the {selected} login browser. Run this command on a graphical desktop. '
+                'For chromium, install it with: python -m playwright install chromium. '
+                'For chrome or msedge, install that browser separately. See docs/ADMIN_GUIDE.md.'
+            ) from None
+        try:
+            try:
+                context = browser.new_context()
+                page = context.new_page()
+                page.goto(BASE + "/wp-login.php")
+                input("Complete login in the browser, then press Enter here to verify and save the session: ")
+                page.goto(LIST_URL)
+                page.locator("#urlContainer").wait_for(timeout=30000)
+                state = context.storage_state()
+                save_json(args.state, {'cookies': [c for c in state['cookies'] if c['domain'].lstrip('.') == 'hi10anime.com'], 'origins': []})
+            except BrowserError:
+                raise ValueError('Login browser navigation or session capture failed. Complete login and retry; no new session was saved.') from None
+        finally:
+            browser.close()
     print(f"Saved session to {args.state}. Treat this file like a password.")
 
 
@@ -199,7 +222,12 @@ def _download(args) -> None:
     failures = []
     with make_client(args.state) as client:
         for project in plan["projects"]:
+            sources = mirror_sources(project.get('variants', []))
             for item in project["files"]:
+                if 'mirrors' not in item and item.get('key'):
+                    alternatives = sources.get((item['key'], item.get('resolution'), item.get('section_id')), [])
+                    if item['url'] in alternatives:
+                        item = dict(item, mirrors=alternatives)
                 folder = file_folder(args.output, project["folder"], item)
                 folder.mkdir(parents=True, exist_ok=True)
                 target = child_path(folder, item["filename"])
@@ -209,7 +237,7 @@ def _download(args) -> None:
                 if not record and receipt.exists():
                     record = load_json(receipt)
                 if target.exists():
-                    if record and record["url"] == item["url"] and target.stat().st_size == record["size"] and digest(target) == record["sha256"]:
+                    if record and record["url"] in urls_for(item) and target.stat().st_size == record["size"] and digest(target) == record["sha256"]:
                         manifest[key] = record
                         save_json(manifest_path, manifest)
                         clear_receipt(target)
@@ -217,8 +245,18 @@ def _download(args) -> None:
                         continue
                     failures.append(f"{key}: existing file is untracked or changed; move it before retrying")
                     continue
+                try:
+                    selection = check_mirrors(client, item, project['url'])
+                except MirrorCheckError as exc:
+                    failures.append(f'{key}: {exc}')
+                    time.sleep(args.delay)
+                    continue
+                item['url'] = selection.urls[0]
+                if selection.message:
+                    print(selection.message, flush=True)
                 print(f"Downloading: {key}", flush=True)
-                for attempt in range(args.retries + 1):
+                attempt_limit = args.retries + len(selection.urls)
+                for attempt in range(attempt_limit):
                     try:
                         record = download_one(client, item, project["url"], target)
                         manifest[key] = record
@@ -226,8 +264,10 @@ def _download(args) -> None:
                         clear_receipt(target)
                         break
                     except (httpx.HTTPError, ValueError, OSError) as exc:
+                        if try_next_mirror(item, selection.urls, exc):
+                            continue
                         delay = retry_delay(exc, attempt)
-                        if attempt == args.retries or delay is None:
+                        if attempt == attempt_limit - 1 or delay is None:
                             failures.append(f"{key}: {type(exc).__name__}")
                             break
                         time.sleep(delay)
@@ -242,7 +282,10 @@ def main() -> int:
     parser.add_argument('--version', action='version', version=__version__)
     parser.add_argument("--state", type=Path, default=Path(".hi10/session.json"), help="Saved browser session (sensitive)")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("login", help="Log in manually using a visible browser").set_defaults(func=login)
+    login_parser = commands.add_parser("login", help="Log in manually using a visible browser")
+    login_parser.add_argument('--browser', choices=('chromium', 'chrome', 'msedge'), default='chromium',
+                              help='Bundled Chromium, or an installed Chrome/Edge; sandboxing stays enabled')
+    login_parser.set_defaults(func=login)
     scan_parser = commands.add_parser("scan", help="Create a reviewable JSON download plan")
     scan_parser.add_argument("--project", action="append", help="Scan only this project URL; repeatable")
     scan_parser.add_argument("--limit", type=int, help="Limit the number of projects scanned")
