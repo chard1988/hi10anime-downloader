@@ -142,6 +142,29 @@ def parse_project(html: str, url: str) -> dict:
             "variants": files, "candidate_count": len(files), 'sections': sections}
 
 
+def mirror_sources(variants: list[dict]) -> dict:
+    index = {}
+    for item in variants:
+        if item.get('key') is not None:
+            key = (item['key'], item.get('resolution'), item.get('section_id'))
+            index.setdefault(key, {})[item['url']] = None
+    return {key: list(urls) for key, urls in index.items()}
+
+
+def with_mirrors(item: dict, variants: list[dict]) -> dict:
+    """Retain alternatives only for this identity, section and selected resolution."""
+    selected = dict(item)
+    if item.get('key') is None:
+        return selected
+    urls = list(dict.fromkeys([item['url']] + [v['url'] for v in variants
+        if v.get('key') == item['key'] and v.get('resolution') == item.get('resolution')
+        and v.get('section_id') == item.get('section_id')]))
+    selected.pop('mirrors', None)
+    if len(urls) > 1:
+        selected['mirrors'] = urls
+    return selected
+
+
 def select_files(candidates: list[dict], preferred: int = 0, choices: dict | None = None,
                  section_qualities: dict | None = None) -> list[dict]:
     """Choose one variant per identity within each collection section."""
@@ -153,7 +176,7 @@ def select_files(candidates: list[dict], preferred: int = 0, choices: dict | Non
         section_quality = int((section_qualities or {}).get(variants[0].get('section_id'), 0)) or preferred
         quality = int((choices or {}).get(key, 0)) or section_quality
         matching = [item for item in variants if item["resolution"] == quality] if quality else []
-        selected.append(dict(max(matching or variants, key=lambda item: item["resolution"])))
+        selected.append(with_mirrors(max(matching or variants, key=lambda item: item["resolution"]), variants))
     names = set()
     for item in selected:
         name = item["filename"]

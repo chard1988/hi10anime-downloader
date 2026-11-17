@@ -165,3 +165,43 @@ provide access to your personal Chrome session. Do not use `document.cookie` or
 Save page as to capture an authenticated session: protected HttpOnly cookies are
 not available to page JavaScript. The app still verifies the imported session;
 expiration and site/browser/IP binding can affect reuse.
+
+## Alternative download links
+
+Link checking runs automatically at download time for files with multiple known
+links at the selected resolution. Episodes, movies and other single-file projects
+use the same behavior. Alternatives are grouped by the existing file identity,
+section/season and quality; different episodes, editions and encodes stay separate.
+The selected filename and destination remain stable.
+
+Each alternative receives a streamed GET requesting `Range: bytes=0-3`. An active
+response must serve a Matroska/EBML prefix, rather than merely an HTTP 200 login,
+HTML error or challenge page. Both valid partial responses and servers ignoring
+Range with HTTP 200 are supported; the stream closes after reading the prefix.
+Probes use the same authenticated client, redirect limits, public-address policy
+and cookie-domain restrictions as downloads. No HEAD support is required.
+
+All alternatives are checked sequentially, then the first working one is used.
+If that mirror fails during transfer, another validated same-quality alternative
+can be tried. Full download integrity and disk/size/time limits still apply.
+A prefix probe proves current availability only, not that the entire transfer will
+succeed. If no alternative works, the item fails with counts/error categories;
+**the link checker never falls back to a lower resolution**. Failed links are retained for
+future retries rather than permanently blacklisted.
+
+Files with one link have no extra request. Explicitly edited queue URLs stay
+authoritative and bypass alternative selection. Existing queues reuse alternatives
+from cached scan data when available. Rescan a project to refresh changed upstream
+links; adding it to the queue again refreshes pending records without duplicates.
+Older CLI plans can reuse their recorded variants, without changing queued quality.
+
+Link-check progress and the final count are shown in expanded queue-row details.
+View download link uses the chosen mirror after selection. Already downloaded files
+can be verified against their manifest if its source is any known same-quality
+mirror, without probing or downloading again.
+
+Resource limits: at most 32 alternative links per file, a 60-second elapsed checking
+budget (checked between probes and prefix chunks), and 5-second connect/read
+inactivity timeouts. Redirects retain the client's existing five-hop limit.
+Cancellation is checked between probes and prefix chunks. Timeouts and HTTP errors
+mean unavailable during this check, not proof that a URL is permanently dead.

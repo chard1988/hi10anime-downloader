@@ -11,10 +11,11 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .parsing import parse_project, project_links, safe_name
+from .parsing import parse_project, project_links, safe_name, mirror_sources
 from .network import client as safe_client, bounded_page
 from .lifecycle import ServiceLocks
 from . import __version__, schema
+from .mirrors import check_mirrors, urls_for, try_next_mirror, MirrorCheckError
 
 BASE = "https://hi10anime.com"
 LIST_URL = BASE + "/projects/all-projects"
@@ -221,7 +222,12 @@ def _download(args) -> None:
     failures = []
     with make_client(args.state) as client:
         for project in plan["projects"]:
+            sources = mirror_sources(project.get('variants', []))
             for item in project["files"]:
+                if 'mirrors' not in item and item.get('key'):
+                    alternatives = sources.get((item['key'], item.get('resolution'), item.get('section_id')), [])
+                    if item['url'] in alternatives:
+                        item = dict(item, mirrors=alternatives)
                 folder = file_folder(args.output, project["folder"], item)
                 folder.mkdir(parents=True, exist_ok=True)
                 target = child_path(folder, item["filename"])
@@ -231,7 +237,7 @@ def _download(args) -> None:
                 if not record and receipt.exists():
                     record = load_json(receipt)
                 if target.exists():
-                    if record and record["url"] == item["url"] and target.stat().st_size == record["size"] and digest(target) == record["sha256"]:
+                    if record and record["url"] in urls_for(item) and target.stat().st_size == record["size"] and digest(target) == record["sha256"]:
                         manifest[key] = record
                         save_json(manifest_path, manifest)
                         clear_receipt(target)
@@ -239,8 +245,18 @@ def _download(args) -> None:
                         continue
                     failures.append(f"{key}: existing file is untracked or changed; move it before retrying")
                     continue
+                try:
+                    selection = check_mirrors(client, item, project['url'])
+                except MirrorCheckError as exc:
+                    failures.append(f'{key}: {exc}')
+                    time.sleep(args.delay)
+                    continue
+                item['url'] = selection.urls[0]
+                if selection.message:
+                    print(selection.message, flush=True)
                 print(f"Downloading: {key}", flush=True)
-                for attempt in range(args.retries + 1):
+                attempt_limit = args.retries + len(selection.urls)
+                for attempt in range(attempt_limit):
                     try:
                         record = download_one(client, item, project["url"], target)
                         manifest[key] = record
@@ -248,8 +264,10 @@ def _download(args) -> None:
                         clear_receipt(target)
                         break
                     except (httpx.HTTPError, ValueError, OSError) as exc:
+                        if try_next_mirror(item, selection.urls, exc):
+                            continue
                         delay = retry_delay(exc, attempt)
-                        if attempt == args.retries or delay is None:
+                        if attempt == attempt_limit - 1 or delay is None:
                             failures.append(f"{key}: {type(exc).__name__}")
                             break
                         time.sleep(delay)

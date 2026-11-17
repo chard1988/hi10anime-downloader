@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Check same-quality episode/movie mirror links with bounded video-prefix probes before downloading; skip unavailable links and fail over between validated mirrors without lowering quality.
+- Reuse cached alternatives for existing queues, preserve manual URL edits, and recognize completed files downloaded from another known mirror.
+
 - Export the current Hi10 Chrome/Edge session using a site-scoped local extension, including HttpOnly cookies, without another login.
 
 - Desktop login can explicitly use installed Chrome/Edge with sandboxing enabled.

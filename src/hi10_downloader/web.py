@@ -22,7 +22,7 @@ import httpx
 
 from .browser import LoginBrowser
 from .cli import LIST_URL, child_path, file_folder, digest, download_one, clear_receipt, fetch_page, make_client, save_json
-from .parsing import parse_project, project_links, select_files
+from .parsing import parse_project, project_links, select_files, mirror_sources
 from .sources import load_project_list
 from .runtime import RuntimeState, ACCESS_DAYS
 from .storage import load_json, transaction, recover_transaction, delete_file
@@ -30,6 +30,7 @@ from . import schema, __version__
 from .lifecycle import ServiceLocks
 from .routes import Routes
 from .retries import retry_delay
+from .mirrors import check_mirrors, urls_for, try_next_mirror
 
 
 class Cancelled(Exception):
@@ -273,7 +274,7 @@ class Application(RuntimeState):
         target = child_path(file_folder(self.output, project['folder'], item), item['filename'])
         key = str(target.relative_to(self.output))
         record = manifest.get(key)
-        return bool(record and record['url'] == item['url'] and target.is_file() and target.stat().st_size == record['size'])
+        return bool(record and record['url'] in urls_for(item) and target.is_file() and target.stat().st_size == record['size'])
 
     def summary_for(self, project):
         project_id = project['id']
@@ -419,6 +420,7 @@ class Application(RuntimeState):
                     previous.update(entry)  # Refresh links without adding duplicates.
                     if override:
                         previous['file'] = dict(previous['file'], url=override)
+                        previous['file'].pop('mirrors', None)
                         previous['url_override'] = override
             self.save_queue()
             return {'added': added, 'pending': self.pending_count()}
@@ -451,6 +453,7 @@ class Application(RuntimeState):
     def run_downloads(self, targets=None):
         targets = targets if targets is not None else self.items
         manifest = self.manifest()
+        mirror_project, mirror_index = object(), {}
         with self.lock:
             self.download_job['total'] = len(targets)
         try:
@@ -470,6 +473,22 @@ class Application(RuntimeState):
                         self.download_job['message'] = entry['filename']
                     attempts = 0
                     try:
+                        if not entry.get('url_override') and 'mirrors' not in item and item.get('key'):
+                            project_id = entry.get('project_id')
+                            if project_id != mirror_project:
+                                # Backfill older queues from cached scan data, one project at a time.
+                                try:
+                                    with self.lock:
+                                        variants = self.get_project(project_id).get('variants', [])
+                                    mirror_index = mirror_sources(variants)
+                                except (ValueError, OSError, KeyError):
+                                    mirror_index = {}  # The queue can still use its original link.
+                                mirror_project = project_id
+                            sources = mirror_index.get((item['key'], item.get('resolution'), item.get('section_id')), [])
+                            if sources:
+                                item = dict(item, mirrors=list(dict.fromkeys([item['url'], *sources])))
+                                with self.lock:
+                                    entry['file'] = item
                         folder = file_folder(self.output, entry['folder'], item)
                         folder.mkdir(parents=True, exist_ok=True)
                         target = child_path(folder, item['filename'])
@@ -479,28 +498,44 @@ class Application(RuntimeState):
                             receipt = target.with_name(target.name + '.receipt.json')
                             if not record and receipt.exists():
                                 record = load_json(receipt)
-                            if record and record['url'] == item['url'] and target.stat().st_size == record['size'] and digest(target) == record['sha256']:
+                            if record and record['url'] in urls_for(item) and target.stat().st_size == record['size'] and digest(target) == record['sha256']:
                                 manifest[key] = record
                                 self.save_manifest(manifest, entry.get('project_id') or ident(entry['project_url']))
                                 clear_receipt(target)
                                 with self.lock:
+                                    item['url'] = record['url']
                                     entry.update(status='complete', bytes=record['size'], total=record['size'], message='Verified existing file')
                             else:
                                 raise ValueError('An untracked or changed file exists. Move it before retrying.')
                         else:
-                            for attempt in range(3):
+                            def check_cancel():
+                                if self.download_cancel.is_set():
+                                    raise Cancelled()
+                            def link_progress(done, total, active):
+                                with self.lock:
+                                    entry['message'] = f'Checking links {done}/{total}; {active} active.'
+                            selection = check_mirrors(client, item, entry['project_url'], check_cancel, link_progress)
+                            with self.lock:
+                                item['url'] = selection.urls[0]
+                            attempt_limit = 3 + len(selection.urls) - 1
+                            for attempt in range(attempt_limit):
                                 attempts = attempt + 1
                                 try:
+                                    check_cancel()
                                     record = download_one(client, item, entry['project_url'], target, progress=progress)
                                     manifest[key] = record
                                     self.save_manifest(manifest, entry.get('project_id') or ident(entry['project_url']))
                                     clear_receipt(target)
                                     with self.lock:
-                                        entry.update(status='complete', bytes=record['size'], total=record['size'])
+                                        entry.update(status='complete', bytes=record['size'], total=record['size'], message=selection.message)
                                     break
                                 except (httpx.HTTPError, ValueError, OSError) as exc:
+                                    with self.lock:
+                                        switched = try_next_mirror(item, selection.urls, exc)
+                                    if switched:
+                                        continue
                                     delay = retry_delay(exc, attempt)
-                                    if attempt == 2 or delay is None:
+                                    if attempt == attempt_limit - 1 or delay is None:
                                         raise
                                     if self.download_cancel.wait(delay):
                                         raise Cancelled()
@@ -609,6 +644,7 @@ class Application(RuntimeState):
                 if not valid or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in url):
                     raise ValueError('Enter a valid HTTP or HTTPS download URL without credentials or whitespace.')
                 entry['file'] = dict(entry['file'], url=url)
+                entry['file'].pop('mirrors', None)
                 entry.update(url_override=url, status='queued', bytes=0, total=None, message='Download URL updated. Ready to retry.')
                 self.save_queue()
             elif path == '/api/projects/exclude':

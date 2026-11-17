@@ -17,6 +17,8 @@ stable image, public registry repository, or Community Applications listing exis
   alongside one sequential download batch, and stop them independently.
 - Group queue files under expandable projects. Expand files for destination/errors,
   edit expired links, retry individual files, filter status and apply bulk actions.
+- Before downloading a file with multiple same-quality links, check the alternatives
+  and choose a working mirror. Keep the selected quality if every mirror fails.
 - Files use private manifests, checksums, temporary downloads and completion receipts.
   Existing untracked files are preserved. Interrupted transfers currently restart
   from the beginning; byte-range resume is not implemented.
