@@ -1,7 +1,7 @@
 function visibleProjects() {
   const query = $('search').value.trim().toLowerCase(), filter = $('filter').value;
   return (state?.projects || []).filter(p => p.title.toLowerCase().includes(query) && (
-    filter === 'excluded' && p.excluded || filter === 'all' || filter === 'unscanned' && !p.scanned || filter === 'ready' && p.remaining > 0 && !p.excluded || filter === 'complete' && p.count > 0 && p.remaining === 0 || filter === 'issues' && p.error && !p.excluded));
+    filter === 'monitored' && p.monitored && !p.excluded || filter === 'excluded' && p.excluded || filter === 'all' || filter === 'unscanned' && !p.scanned || filter === 'ready' && p.remaining > 0 && !p.excluded || filter === 'complete' && p.count > 0 && p.remaining === 0 || filter === 'issues' && p.error && !p.excluded));
 }
 function pageProjects() {
   const filtered = visibleProjects();
@@ -14,6 +14,8 @@ function updateSelection() {
   $('select-all').checked = visible.length > 0 && visible.every(p => selected.has(p.id));
   $('select-all').indeterminate = !visible.every(p => selected.has(p.id)) && visible.some(p => selected.has(p.id));
   const busy = operationsBusy() || !!pendingAction;
+  $('monitor-selected').disabled = !!pendingAction || ![...selected].some(id=>!projectsById.get(id)?.excluded && !projectsById.get(id)?.monitored);
+  $('unmonitor-selected').disabled = !!pendingAction || ![...selected].some(id=>projectsById.get(id)?.monitored);
   $('exclude-selected').disabled = busy || ![...selected].some(id=>!projectsById.get(id)?.excluded);
   $('include-selected').disabled = busy || ![...selected].some(id=>projectsById.get(id)?.excluded);
   $('scan-selected').disabled = !!state?.job.running || !!pendingAction || ![...selected].some(id=>!projectsById.get(id)?.excluded) || !state?.session.connected;
@@ -33,13 +35,14 @@ function renderProjects(force = false) {
     checkbox.addEventListener('change', () => { checkbox.checked ? selected.add(p.id) : selected.delete(p.id); updateSelection(); lastRows = ''; }); checkboxCell.append(checkbox);
     const titleCell = node('td'), title = node('a', p.title, 'project-title'); title.href = p.url; title.target = '_blank'; title.rel = 'noopener noreferrer'; title.title = p.title;
     titleCell.append(title, node('div', p.scanned ? `${p.count || 0} file${p.count === 1 ? "" : "s"} detected · ${p.complete} downloaded` : 'Scan to discover files', 'project-subtitle'));
+    if (p.monitored) {const label=node('div', p.monitor_error ? 'Monitored · check needs attention' : p.excluded ? 'Monitoring suspended · excluded' : 'Monitored', 'project-subtitle'); label.title=p.monitor_error || (p.monitor_last_checked ? `Last checked ${new Date(p.monitor_last_checked*1000).toLocaleString()}` : 'Waiting for first check'); titleCell.append(label);}
     if (p.section_count > 1) titleCell.append(node('div', `${p.selected_section_count} of ${p.section_count} sections selected`, 'project-subtitle'));
     const countCell = node('td'), count = node('div', p.count === null ? '—' : String(p.remaining), 'file-count'); if (p.count !== null) count.append(node('span', 'remaining')); countCell.append(count);
     const qualityCell = node('td'), badges = node('div', undefined, 'quality-wrap');
     if (p.qualities.length) p.qualities.forEach((q, i) => badges.append(node('span', qualityLabel(q), `badge${i === 0 ? ' best' : ''}`))); else badges.append(node('span', '—', 'muted'));
     qualityCell.append(badges);
     let status = 'Not scanned', statusClass = '';
-    const scanning = state.job.running && state.job.kind === 'scan' && (state.job.project_id === p.id || (!state.job.project_id && state.job.project_ids?.includes(p.id)));
+    const scanning = state.job.running && ['scan','monitor'].includes(state.job.kind) && (state.job.project_id === p.id || (!state.job.project_id && state.job.project_ids?.includes(p.id)));
     const requestingScan = pendingAction?.path === '/api/scan' && pendingAction.ids.includes(p.id);
     if (scanning || requestingScan) {status = scanning && state.job.project_id ? 'Scanning…' : 'Starting scan…'; statusClass = 'ready';}
     else if (p.excluded) {status = 'Excluded'; statusClass = 'issue';}
@@ -64,6 +67,12 @@ function renderProjects(force = false) {
       if (waiting) {button.prepend(node('span', undefined, 'button-spinner')); button.setAttribute('aria-busy', 'true');}
       button.addEventListener('click', () => action('/api/scan', {ids: [p.id]})); actions.append(button);
     }
+    const monitor = node('button', p.monitored ? 'Unmonitor' : 'Monitor', 'secondary small');
+    monitor.setAttribute('aria-label', `${p.monitored ? 'Unmonitor' : 'Monitor'} project ${p.title}`);
+    monitor.title = p.monitored ? 'Stop automatic checks and future automatic starts for this project' : 'Automatically download existing missing files and future additions using your selections';
+    monitor.disabled = !!pendingAction || (!p.monitored && p.excluded);
+    monitor.onclick = () => action('/api/monitoring/projects', {ids:[p.id], enabled:!p.monitored});
+    actions.append(monitor);
     actionsCell.append(actions); row.append(checkboxCell, titleCell, countCell, qualityCell, statusCell, actionsCell); fragment.append(row);
   }
   $('projects').replaceChildren(fragment);

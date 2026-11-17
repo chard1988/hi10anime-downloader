@@ -100,3 +100,18 @@ $('exclude-queue-projects').onclick=async()=>{
   }
 };
 $('clear-queue-project-selection').onclick=()=>{queueProjectsSelected.clear();lastDownloads='';renderDownloads();};
+
+$('monitoring-settings').onclick=()=>{
+  $('monitoring-interval').value=state.monitoring.interval_minutes;
+  $('monitoring-paused').checked=state.monitoring.paused;
+  $('monitoring-dialog').showModal();
+};
+$('close-monitoring').onclick=()=>$('monitoring-dialog').close();
+$('monitoring-form').onsubmit=async event=>{
+  event.preventDefault();
+  await action('/api/monitoring/settings',{interval_minutes:Number($('monitoring-interval').value),paused:$('monitoring-paused').checked},'Monitoring settings saved.');
+};
+$('check-monitoring').onclick=()=>action('/api/monitoring/check',{},'Monitoring check requested.');
+$('clear-monitoring').onclick=async()=>{if(confirm('Stop monitoring all projects? Queue entries and downloaded files are retained.')) await action('/api/monitoring/clear',{});};
+$('monitor-selected').onclick=()=>action('/api/monitoring/projects',{ids:[...selected].filter(id=>!projectsById.get(id)?.excluded),enabled:true});
+$('unmonitor-selected').onclick=()=>action('/api/monitoring/projects',{ids:[...selected],enabled:false});

@@ -114,7 +114,7 @@ remove the helper after exporting. Docker does not need rebuilding for session i
 After connection, refresh projects, scan a small selection, add files to the queue
 and click Start selected. Same-quality alternative links are checked at download
 time; all-dead alternatives fail without reducing quality. Queueing alone does not
-start unscheduled downloads. Closing the browser does not stop server-side downloads.
+start unscheduled manual downloads. Opt-in monitoring in development can start its own new entries. Closing the browser does not stop server-side downloads.
 
 ## Manual fallback and troubleshooting
 

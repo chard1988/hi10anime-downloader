@@ -206,3 +206,23 @@ budget (checked between probes and prefix chunks), and 5-second connect/read
 inactivity timeouts. Redirects retain the client's existing five-hop limit.
 Cancellation is checked between probes and prefix chunks. Timeouts and HTTP errors
 mean unavailable during this check, not proof that a URL is permanently dead.
+
+## Project monitoring
+
+Opt in through Monitor/Monitor selected in the project library. Monitoring checks
+existing missing files as well as future additions, using saved quality/section
+choices. Header Monitoring settings control interval, pause/resume and Check now.
+Only monitoring-owned new queue entries auto-start. Existing manual entries remain
+manual, and explicit download schedules take priority. Stop batch pauses automatic
+monitoring; resume in settings. Failures require manual Retry after an attempt.
+
+The private `monitoring.json` in appdata stores settings, project check times and
+hashed file identities; include it in full appdata backups. It uses the same schema
+validation, last-known-good backups and transaction recovery as the queue. Keep the
+container running with a valid session. Expired sessions suspend checks until
+verification/import succeeds. Checks are sequential, up to five projects per
+scheduler pass, with a 15-minute minimum interval. Limits: 200 monitored projects,
+100,000 tracked identities. Excluded projects are skipped; unmonitoring retains
+queue/files but prevents future automatic starts. A currently transferring file
+may finish. Re-enabling an unmonitored project resets its tracked history; verified
+files and existing queue entries still prevent duplicates.
