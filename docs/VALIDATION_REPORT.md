@@ -1,5 +1,8 @@
 # Local beta validation — 2026-11-09
 
+Historical baseline: current beta image reports are attached to the versioned
+GitHub prerelease. See [the current install guide](UNRAID_INSTALL.md).
+
 Status: **engineering candidate; not cleared for public distribution**.
 MIT is selected. No GitHub repository, registry publication, CA submission or
 stable release was created.

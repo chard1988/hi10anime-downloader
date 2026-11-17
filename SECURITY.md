@@ -5,12 +5,12 @@ HTTPS reverse proxy configured with a fixed external origin. Do not enable publi
 Funnel access or direct internet port forwarding for this beta.
 
 Do not post session files, signed download URLs, cookies, appdata backups,
-passwords, or unredacted logs in public issues. Until a public repository and a
-private reporting channel exist, report suspected issues privately to the project
-owner through the existing private communication channel. A public reporting URL
-must be configured before distribution; no response-time SLA is promised yet.
+passwords, or unredacted logs in public issues. The source/issues repository is https://github.com/chard1988/hi10anime-downloader.
+Use public issues only for redacted non-sensitive reports. Report suspected sensitive
+issues privately to the owner through an established private channel until private
+vulnerability reporting is verified/enabled. No response-time SLA is promised yet.
 
-When a repository is created, enable GitHub private vulnerability reporting and
+Before a stable release, enable GitHub private vulnerability reporting and
 replace this paragraph with its verified reporting URL. Reproduce issues using
 synthetic fixtures wherever possible.
 

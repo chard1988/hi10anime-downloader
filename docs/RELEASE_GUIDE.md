@@ -1,78 +1,72 @@
-# Candidate validation (no stable release)
+# Beta publishing and stable-release gates
 
-## Scope and owner gates
+## Current authorization and scope
 
-All preparation in this checkout is local. No repository has been created, no
-image pushed, no signing identity provisioned, no CA submission finalized, and no
-stable release approved. MIT was selected by the owner. Choose the real repository,
-registry namespace and support/reporting URLs before public distribution.
+The owner approved publishing a versioned testing beta on 2026-11-17, with disclosed
+security findings and hardened-browser compatibility limits. The actual source is
+https://github.com/chard1988/hi10anime-downloader and the registry namespace is
+`ghcr.io/chard1988/hi10anime-downloader`. Stable/latest publishing and CA submission
+remain disabled. Historical audit reports describe their dated earlier snapshots.
 
-## Rebuild and verify
+## Git-flow release procedure
 
-The Dockerfile pins the Python base digest and installs requirements.lock using
---require-hashes. OS packages/Chromium downloads still depend on upstream build
-repositories; this is traceable input pinning, not a claim of bit-for-bit builds.
-Update base/lock regularly rather than preserving vulnerable dependencies.
+1. Start `git flow release start 0.3.0-beta.2` from develop.
+2. Align pyproject/__version__ (`0.3.0b2`), Docker metadata (`0.3.0-beta.2`),
+   changelog, release notes, template, Compose and installer. release_metadata.py
+   rejects mismatched refs and all stable versions.
+3. Push the release branch. release-beta.yml builds and tests it without publishing.
+   Repair failures on that branch. No write token is supplied to build/test scripts.
+4. After candidate checks pass, finish the git-flow release with an annotated tag,
+   merge back into develop, and push master/develop/tag atomically. The tag triggers
+   the same build/test pipeline, then publishes the exact tested image and creates
+   a GitHub prerelease with allowlisted assets. It refuses an existing version.
+5. Set the new GHCR package Public once in Package settings. Anonymous pull and
+   actual unRAID install/upgrade remain owner/hardware checks until verified.
 
-Build the candidate, save its immutable image ID/digest, and run the unit suite,
-benchmark, browser fixture and lifecycle smoke against that exact image. The
-prepared `.github/workflows/validate.yml` does this without publishing. It has
-read-only repository permission and hash-pinned actions. Do not use pull_request_target
-or pass release credentials to untrusted pull requests.
+The beta workflow only handles matching vMAJOR.MINOR.PATCH-beta.N tags, never
+stable/latest tags. Its contents/package write permissions are used only for the
+trusted repository's release job; credentials are exposed only to publishing
+steps. It does not run on pull requests. Normal validation retains strict security
+and sandbox gates for stable-readiness checks. A passing beta job is not a claim
+that those stable gates passed.
 
-```
-docker build -t hi10-downloader:beta .
-docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" -v "$PWD/unraid:/unraid:ro" hi10-downloader:beta -m unittest discover -s /tests -q
-docker run --rm --shm-size=1g --entrypoint python -v "$PWD/tests:/tests:ro" hi10-downloader:beta /tests/e2e.py
-python3 scripts/container_smoke.py --image hi10-downloader:beta
-python3 scripts/install_audit_tools.py
-docker save -o artifacts/image.tar hi10-downloader:beta
-.tools/syft docker-archive:artifacts/image.tar -o cyclonedx-json=artifacts/sbom.cdx.json
-.tools/grype sbom:artifacts/sbom.cdx.json --fail-on high -o json > artifacts/vulnerabilities.json
-```
+## Exact-image evidence and explicit beta exceptions
 
-Create artifacts/ first. Review all scanner findings, including unfixed issues;
-CI blocks all high/critical findings. A waiver must name the CVE, affected
-component, compensating control, owner and expiry. Do not add blanket ignores.
-Scanner outputs, SBOM and build metadata are stored as CI artifacts. Local metadata
-is not a signed public attestation. BuildKit provenance is collected in metadata;
-registry attestations/signatures will be configured with the actual repository and
-publishing identity when authorized. Only advertised/tested architecture is amd64.
+All Python, JavaScript, browser, extension, lifecycle/restart and resource checks
+must pass. SBOM/scanner failures, incomplete reports and unexpected browser failures
+block publication. The beta audit allows only the explicitly disclosed sandbox
+compatibility failure and completed scans with reported high/critical findings.
+It records these as failed stable gates in beta-validation.json, without ignores.
+Only the explicit testing prerelease path accepts this policy; no stable waiver is
+created. Review every match for reachability/remediation before a stable release.
 
-Audit tools are official version/hash-locked Syft and Grype downloads. To update,
-review upstream releases, run scripts/tool_metadata.py, then
-scripts/install_audit_tools.py --refresh-hashes, and review the resulting lock file.
-Dependency updates should run pip-compile under Python 3.12 with --allow-unsafe,
---generate-hashes, and --strip-extras, followed by exact-image tests.
+The image pins its Python base and uses a hash-locked dependency resolution. OS
+packages and Playwright browser downloads still depend on upstream repositories;
+this is not bit-for-bit reproducibility. SBOM and build metadata are attached to
+the release. They are not signed publisher attestations. Exact image digests and
+checksums support installation/rollback but do not replace signing or license review.
 
-## Prepare unRAID metadata
+The image is pushed with its immutable-by-policy version tag and the mutable beta
+channel. Do not move a published version tag. Partial publication must be inspected;
+publish a new beta version rather than silently overwriting a released image.
+GitHub's Actions GITHUB_TOKEN handles registry/release authentication. No owner PAT
+is committed or needed for public pulls.
 
-The existing unraid/hi10-downloader.xml remains a local-source template. An original
-SVG icon and root ca_profile.xml are ready. To generate public candidate XML files
-without publishing:
+## Before stable/public production claims
 
-```
-python3 scripts/prepare_distribution.py --repository OWNER/REPO --support https://github.com/OWNER/REPO/issues
-```
+- Resolve or individually assess every high/critical finding with component,
+  reachability, compensating control, owner and expiry; no blanket ignores.
+- Resolve embedded-browser support without broad privileges or advertise only the
+  verified import path with appropriate UI behavior.
+- Validate real unRAID install, upgrade/interrupted upgrade, backup restore and
+  rollback against redacted data, plus filesystem lock/fsync and a multi-day soak.
+- Verify anonymous published-digest pulls and intended platform behavior. Only
+  Linux/amd64 is tested; do not claim ARM or Tailscale-hook support.
+- Review dependency notices/licenses, source/history/image-layer secrets, keyboard
+  and mobile accessibility, and real account/session flows.
+- Enable verified private vulnerability reporting, define support ownership,
+  configure registry signing/attestations, and complete CA Validate/Scan externally.
 
-Generated files go under ignored artifacts/distribution. Replace them only after
-the actual destinations exist, image tags pull anonymously, ownership/support text
-is reviewed and private vulnerability reporting is enabled. Run Community
-Applications Validate/Scan externally before submission. An offline XML check is
-not equivalent to CA acceptance. Tailscale hook support is optional and remains
-unadvertised until exercised on a real unRAID installation.
-
-## Release-candidate gates before public beta
-
-- Clean-host install and anonymous image pull after the registry exists.
-- Upgrade from a redacted/synthetic old appdata snapshot, interrupted upgrade,
-  backup restore and rollback to the prior exact image.
-- Stop/restart, forced kill, disk full, corrupt state, receipt recovery and auth tests.
-- Real-browser workflows and manual keyboard/mobile accessibility review.
-- Image scan, SBOM/license notice review, secret scan of source/history/image layers.
-- Representative multi-day soak and NAS filesystem tests on the intended hardware.
-- No public credentials/media/site artwork in source or artifacts.
-
-Hardware tests, a multi-day soak, a published-image pull, repository history scan,
-CA platform review and real Tailscale integration cannot be certified by local
-source/unit checks. Record evidence and retain unresolved gates explicitly.
+Audit tool versions/hashes are in tools.lock.json. Review upstream changes before
+refreshing them. Regenerate Python locks under Python 3.12 and test the resulting
+exact image. No credential/session/download folders belong in artifacts or history.

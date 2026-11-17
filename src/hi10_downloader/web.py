@@ -789,7 +789,7 @@ class Application(RuntimeState):
 
 
 class Handler(Routes, BaseHTTPRequestHandler):
-    server_version = 'Hi10Web/0.3.0b1'
+    server_version = f'Hi10Web/{__version__}'
 
     def log_message(self, *args):
         pass  # Never log private requests or credentials.
