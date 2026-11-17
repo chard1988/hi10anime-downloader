@@ -1,9 +1,9 @@
 FROM docker.io/library/python:3.12-slim@sha256:05a994d2344eb364cc186910f4fc8786a38215f39f00d0acc25bff33a08f4177
 
-ARG VERSION=0.3.0b1
+ARG VERSION=0.3.0-beta.2
 ARG VCS_REF=uncommitted
 LABEL org.opencontainers.image.title="Hi10 Download Manager" \
-      org.opencontainers.image.description="Private-beta project scanner and download queue" \
+      org.opencontainers.image.description="Testing-beta project scanner and download queue" \
       org.opencontainers.image.version=$VERSION \
       org.opencontainers.image.revision=$VCS_REF \
       org.opencontainers.image.licenses="MIT"
@@ -22,7 +22,7 @@ RUN pip install --require-hashes -r requirements.lock \
     && mkdir -p /config /downloads /tmp/hi10-home \
     && chown 99:100 /config /downloads /tmp/hi10-home \
     && rm -rf /var/lib/apt/lists/*
-ARG SOURCE_URL=
+ARG SOURCE_URL=https://github.com/chard1988/hi10anime-downloader
 LABEL org.opencontainers.image.source=$SOURCE_URL
 # Pick up security fixes released after the pinned base/browser layers.
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \

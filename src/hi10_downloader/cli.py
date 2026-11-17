@@ -39,7 +39,7 @@ def make_client(state_path: Path) -> httpx.Client:
         cookies.jar.set_cookie(Cookie(0, cookie["name"], cookie["value"], None, False,
             domain, domain.startswith("."), domain.startswith("."), cookie.get("path", "/"),
             True, cookie.get("secure", True), None, True, None, None, {}))
-    return safe_client(cookies=cookies, headers={"User-Agent": "Hi10Downloader/0.3.0-beta.1"})
+    return safe_client(cookies=cookies, headers={"User-Agent": f"Hi10Downloader/{__version__}"})
 
 
 def fetch_page(client: httpx.Client, url: str) -> str:

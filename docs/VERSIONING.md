@@ -47,7 +47,8 @@ creates the version tag. Verify the annotated tag and both branch tips before
 explicitly pushing them. Do not force-push shared release branches or move a
 published version tag; publish a new version for a correction.
 
-Stable releases, registry publishing, signing and GitHub Releases remain deferred.
+Stable releases and signing remain deferred. Explicit beta tags can publish
+registry images and GitHub prereleases through RELEASE_GUIDE.md’s beta procedure.
 The bootstrap initialization configures origin but does not push source or tags.
 Branch protections and the GitHub default branch are separate repository settings;
 use develop as the default integration branch and protect both long-lived branches

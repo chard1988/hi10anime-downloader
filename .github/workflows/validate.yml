@@ -1,7 +1,8 @@
-name: Validate beta candidate (no publishing)
+name: Strict stable-readiness checks
 on:
   pull_request:
   push:
+    branches: [master, develop]
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,7 +25,7 @@ jobs:
           docker buildx build --load --metadata-file artifacts/build-metadata.json --build-arg VCS_REF="$GITHUB_SHA" --build-arg SOURCE_URL="https://github.com/$GITHUB_REPOSITORY" -t hi10-downloader:beta .
       - name: Python tests in release runtime
         run: |
-          docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" -v "$PWD/unraid:/unraid:ro" hi10-downloader:beta -m unittest discover -s /tests -q
+          docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" -v "$PWD/unraid:/unraid:ro" -v "$PWD/scripts:/scripts:ro" hi10-downloader:beta -m unittest discover -s /tests -q
           docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" hi10-downloader:beta /tests/benchmark.py
       - name: JavaScript checks
         run: |

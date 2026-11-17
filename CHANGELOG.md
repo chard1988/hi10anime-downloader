@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0b2 — 2026-11-17 testing prerelease
 
 - Check same-quality episode/movie mirror links with bounded video-prefix probes before downloading; skip unavailable links and fail over between validated mirrors without lowering quality.
 - Reuse cached alternatives for existing queues, preserve manual URL edits, and recognize completed files downloaded from another known mirror.
@@ -10,7 +10,10 @@
 - Desktop login can explicitly use installed Chrome/Edge with sandboxing enabled.
 - Browser startup/navigation failures produce safe CLI errors and clean up the browser.
 
-## 0.3.0b1 — unreleased private beta
+- Versioned GHCR beta publication, GitHub prerelease assets/reports and pull-based unRAID installation.
+- Explicitly disclosed beta security/browser compatibility limits; no stable/latest image tag.
+
+## 0.3.0b1 — bootstrap private-beta snapshot
 
 - Production Waitress WSGI boundary with bounded HTTP resources and request IDs.
 - Login throttling, persisted revocable sessions, fixed-origin HTTPS cookie policy.

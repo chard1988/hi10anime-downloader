@@ -1,0 +1,125 @@
+name: Build and publish testing beta
+on:
+  push:
+    branches: ['release/**']
+    tags: ['v*-beta.*']
+permissions:
+  contents: read
+concurrency:
+  group: beta-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  beta:
+    if: github.repository == 'chard1988/hi10anime-downloader'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      packages: write
+    env:
+      CANDIDATE: hi10-release:candidate
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate beta-only ref and version
+        id: release
+        run: python3 scripts/release_metadata.py "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+      - name: Check that the release does not already exist
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          mkdir -p artifacts
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --silent 2> artifacts/release-preflight.txt; then
+            echo 'A release already exists for this version. Publish a new version instead.' >&2
+            exit 1
+          elif ! grep -q 'HTTP 404' artifacts/release-preflight.txt; then
+            cat artifacts/release-preflight.txt >&2
+            exit 1
+          fi
+      - name: Build exact candidate
+        env:
+          BUILDX_METADATA_PROVENANCE: max
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          docker buildx build --load --metadata-file artifacts/build-metadata.json --build-arg VERSION="$VERSION" --build-arg VCS_REF="$GITHUB_SHA" --build-arg SOURCE_URL="https://github.com/$GITHUB_REPOSITORY" -t "$CANDIDATE" . 2>&1 | tee artifacts/build-log.txt
+      - name: Unit, browser and resource fixtures in the candidate
+        run: |
+          docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" -v "$PWD/unraid:/unraid:ro" -v "$PWD/scripts:/scripts:ro" "$CANDIDATE" -m unittest discover -s /tests -q > artifacts/unit-tests.txt 2>&1
+          cat artifacts/unit-tests.txt
+          docker run --rm --shm-size=1g --entrypoint python -v "$PWD/tests:/tests:ro" "$CANDIDATE" /tests/e2e.py > artifacts/browser-ui.txt 2>&1
+          docker run --rm --shm-size=1g --entrypoint python -v "$PWD/tests:/tests:ro" -v "$PWD/browser-extension:/browser-extension:ro" "$CANDIDATE" /tests/e2e_session_export.py > artifacts/browser-extension.txt 2>&1
+          docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" "$CANDIDATE" /tests/benchmark.py > artifacts/benchmark.json
+          python3 scripts/container_smoke.py --image "$CANDIDATE" > artifacts/lifecycle-99.txt 2>&1
+          python3 scripts/container_smoke.py --image "$CANDIDATE" --user 1000:1000 > artifacts/lifecycle-1000.txt 2>&1
+      - name: JavaScript and source validation
+        run: |
+          for script in src/hi10_downloader/static/*.js browser-extension/hi10-session-export/*.js; do node --check "$script"; done
+          node tests/test_polling.cjs
+          node tests/test_ui_state.cjs
+          node tests/test_session_export.cjs
+          python3 scripts/check_distribution.py
+      - name: Generate SBOM and disclose beta security/compatibility findings
+        env:
+          GRYPE_DB_CACHE_DIR: ${{ runner.temp }}/hi10-grype-db
+        run: |
+          python3 scripts/install_audit_tools.py
+          docker save --output artifacts/image.tar "$CANDIDATE"
+          .tools/syft docker-archive:artifacts/image.tar -o cyclonedx-json=artifacts/sbom.cdx.json
+          python3 scripts/beta_audit.py --image "$CANDIDATE" > artifacts/beta-audit-log.txt 2>&1
+          cat artifacts/beta-audit-log.txt
+      - name: Publish the tested image (beta tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ steps.release.outputs.image }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          trap 'docker logout ghcr.io >/dev/null 2>&1' EXIT
+          if gh api "users/$GITHUB_REPOSITORY_OWNER/packages/container/${GITHUB_REPOSITORY#*/}/versions" --paginate --jq '.[].metadata.container.tags[]' > artifacts/existing-package-tags.txt 2> artifacts/package-preflight.txt; then
+            if grep -Fxq "$VERSION" artifacts/existing-package-tags.txt; then
+              echo 'This image version already exists; refusing to overwrite it.' >&2
+              exit 1
+            fi
+          elif ! grep -q 'HTTP 404' artifacts/package-preflight.txt; then
+            cat artifacts/package-preflight.txt >&2
+            exit 1
+          fi
+          docker tag "$CANDIDATE" "$IMAGE:$VERSION"
+          docker tag "$CANDIDATE" "$IMAGE:beta"
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:beta"
+          docker image inspect "$IMAGE:$VERSION" --format '{{index .RepoDigests 0}}' > artifacts/image-digest.txt
+      - name: Record unpublished candidate identity
+        if: startsWith(github.ref, 'refs/heads/')
+        run: docker image inspect "$CANDIDATE" --format 'Unpublished candidate {{.Id}}' > artifacts/image-digest.txt
+      - name: Assemble source, extension, template and validation assets
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: python3 scripts/prepare_release_assets.py "$RELEASE_TAG"
+      - name: Publish GitHub prerelease
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: gh release create "$RELEASE_TAG" --verify-tag --prerelease --latest=false --title "Hi10 Download Manager $RELEASE_TAG" --notes-file artifacts/release-notes.md dist/release/*
+      - name: Report failed fixture diagnostics
+        if: failure()
+        run: python3 scripts/report_release_failure.py
+      - name: Retain validation reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: beta-release-validation
+          path: |
+            artifacts/*.json
+            artifacts/*.txt
+            artifacts/release-notes.md
+            dist/release/*
+          retention-days: 14

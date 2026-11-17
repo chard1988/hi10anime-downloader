@@ -2,8 +2,9 @@
 
 ## Supported deployment
 
-This is an MIT-licensed Linux/amd64 private beta with Python 3.12 and a bundled
-Chromium login browser. No stable/public registry image or CA listing is published.
+This is an MIT-licensed Linux/amd64 testing beta with Python 3.12 and a bundled
+Chromium login browser. Versioned beta images use GHCR; no stable image or CA listing
+is published. See UNRAID_INSTALL.md for registry installation and upgrades.
 Use a private LAN/Tailnet or an HTTPS reverse proxy. Default unRAID UID/GID is
 99:100. Other Linux users may specify --user UID:GID with writable config/download
 mounts and a writable HOME. The process never recursively chowns existing mounts.
@@ -13,7 +14,7 @@ Use one service OR CLI process per appdata/download directory.
 
 Build locally with `docker build -t hi10-downloader:beta .`. For Compose, copy
 .env.example to a private .env, set a unique password, create appdata/downloads
-writable by 99:100, and run `docker compose up -d --build`. Compose binds to
+writable by 99:100, and run `docker compose up -d`. Compose binds to
 127.0.0.1 by default; deliberately choose a LAN binding if needed. For unRAID,
 use the source installer and existing template, keeping /config and /downloads.
 Allow 75 seconds for stop. `--init --shm-size=1g` is recommended for Chromium.

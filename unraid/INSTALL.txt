@@ -1,37 +1,31 @@
-Hi10 Download Manager — private beta source bundle (MIT)
+Hi10 Download Manager — v0.3.0-beta.2 testing prerelease (MIT)
 
-No stable registry image or CA listing has been published. This source bundle
-builds a pinned-input Linux/amd64 image on your unRAID server. It includes no
-credentials, sessions, queue state, or downloaded videos.
+Recommended: pull ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2.
+Full instructions are in docs/UNRAID_INSTALL.md and the release's INSTALL.md.
 
-1. Copy hi10-unraid.tar.gz to your server, for example:
-   scp hi10-unraid.tar.gz root@YOUR_UNRAID_SERVER:/mnt/user/appdata/
-2. In the unRAID Terminal:
-   mkdir -p /mnt/user/appdata/hi10-installer
-   tar -xzf /mnt/user/appdata/hi10-unraid.tar.gz -C /mnt/user/appdata/hi10-installer
-   cd /mnt/user/appdata/hi10-installer/hi10-unraid
-   sh install.sh
-3. For a new installation: Docker -> Add Container -> hi10-downloader.
-   Set password, appdata, downloads, and an available port. Keep Bridge networking.
-4. For an update: stop jobs and back up ALL appdata plus hi10-manifest.json first.
-   Rebuild, then recreate the existing container using its saved mappings.
-   If Apply is disabled, change an update-marker environment variable and Apply.
-   Keep Repository hi10-downloader:local. Set Extra Parameters to include
-   --init --shm-size=1g --stop-timeout=75. Hard-refresh the WebUI afterward.
+Fresh install:
+1. Download this source bundle and SHA256SUMS from the GitHub prerelease.
+2. Verify the archive checksum, extract it and run sh install.sh as root in the
+   unRAID Terminal. The script pulls the image and installs a template; it does
+   not start downloads. Package visibility must be Public for anonymous pulls.
+3. Docker -> Add Container -> hi10-downloader; set the app password and host
+   folders mapped to /config and /downloads. Both must be writable by 99:100.
+4. Apply, open WebUI, import your existing Hi10 session, and test selected files.
 
-Both mapped folders must be writable by UID 99/GID 100. Existing folders and
-templates retain their settings/ownership. The installer does not start downloads.
-Generated interface passwords are saved privately in web-password.json and are
-not printed in logs. First visit after upgrading the app-cookie format requires
-one unlock; saved Hi10 cookies remain reusable. Complete CAPTCHA yourself or
-import a desktop Playwright session if login cannot run in sandboxed Chromium.
+Existing install:
+Stop jobs/container, back up all appdata and the download manifest, then edit
+Repository to the versioned image above. Keep existing paths, port and password.
+Apply recreates the container. Do not delete appdata or videos. Existing templates
+are preserved by install.sh, so update Repository manually when one already exists.
 
-The beta uses Waitress, revocable app sessions, login throttling, restricted outbound
-networking, bounded downloads, server-side queue pagination, and recoverable state
-journaling. /healthz reports local service health, not website access. Protect all
-appdata backups: .bak/.corrupt/journal files can contain credentials.
+Extra Parameters:
+--init --shm-size=1g --stop-timeout=75 --cap-drop=ALL --security-opt=no-new-privileges
 
-Downgrade only after restoring the COMPLETE pre-upgrade appdata and manifest backup.
-Use one service or CLI process per appdata/download directory. This source installer
-does not prove public release readiness or integrated Tailscale compatibility.
-See README.md and the administration/release guides in the source repository.
+Use session import from the bundled browser-extension helper. This beta records
+security findings and hardened embedded-browser compatibility failures. It is
+for private LAN/Tailnet testing, not a stable release or CA listing. See the
+attached scan/SBOM/validation reports. Do not enable Privileged to make login work.
+
+Explicit local source build: sh install.sh --build-local
+This is not needed for the normal pull-based installation and can differ from
+the published image digest. No registry password should be put in this bundle.
