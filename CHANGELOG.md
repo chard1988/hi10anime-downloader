@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Detect explicit MKV destinations in fc.lc and Spaste download wrappers alongside
+  ouo links; deduplicate wrappers for the same file and ignore ZIP patches.
+
 - Opt-in persistent project monitoring with bulk controls, a monitored filter,
   interval settings, pause/resume and check-now controls.
 - Automatically queue/download existing missing files and future additions using
