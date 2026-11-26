@@ -138,7 +138,7 @@ class Application(RuntimeState):
             if current['running']:
                 raise ValueError('Another download batch is running.' if downloading else 'Another library operation is running. Wait or stop it first.')
             other = self.job if downloading else self.download_job
-            if other['running'] and (self.job['kind'] != 'scan' if downloading else kind != 'scan'):
+            if other['running'] and (self.job['kind'] not in {'scan', 'monitor'} if downloading else kind not in {'scan', 'monitor'}):
                 raise ValueError('Wait for the current operation to finish. Only scans and downloads can run together.')
             cancel = self.download_cancel if downloading else self.cancel
             cancel.clear()
@@ -162,8 +162,10 @@ class Application(RuntimeState):
                 finally:
                     with self.lock:
                         try:
-                            if kind == 'scan':
+                            if kind in {'scan', 'monitor'}:
                                 self.write_index()
+                            if kind == 'download' and job.get('source') == 'monitor':
+                                self.monitoring.retry_after = time.time() + 300 if job.get('error') else 0
                         finally:
                             job['running'] = False
                             logging.getLogger(__name__).info('job_finished job_id=%s kind=%s failed=%s', job['id'], kind, bool(job['error']))
@@ -208,6 +210,7 @@ class Application(RuntimeState):
         with self.lock:
             self.connected = True
             self.last_verified = time.time()
+            self.monitoring.retry_after = 0
             self.session_status = 'connected'
             self.session_message = 'Session verified and saved on the server.'
             save_json(self.session_info_path, {'verified_at': self.last_verified, 'fingerprint': self.session_fingerprint()})
@@ -354,16 +357,16 @@ class Application(RuntimeState):
             delta = (known_library_version is not None and not unchanged and known_library_version >= self._full_revision
                      and self._changes and known_library_version >= self._changes[0][0] - 1)
             changed_ids = {pid for version, pid in self._changes if version > (known_library_version or 0)} if delta else set()
-            updates = [self._summaries[pid] for pid in changed_ids if pid in self._summaries]
+            updates = [self._summaries[pid] | self.monitoring.public_project(pid) for pid in changed_ids if pid in self._summaries]
             public_job = dict(self.job)
             public_job['project_ids'] = self.job.get('project_ids', [])[:1]
-            return {'projects': None if unchanged or delta else self._library_payload, 'project_updates': updates,
+            return {'projects': None if unchanged or delta else [p | self.monitoring.public_project(p['id']) for p in self._library_payload], 'project_updates': updates,
                     'app_version': __version__, 'library_version': self.library_version, 'job': public_job,
                     'download_job': dict(self.download_job), 'downloads': downloads,
                     'download_groups': public_groups, 'download_page_total': page_total,
                     'download_filtered_total': len(filtered), 'download_filter': download_filter,
                     'download_page': page, 'download_total': len(self.items), 'pending_count': self.pending_count(),
-                    'schedule': dict(self.schedule), 'browser_active': bool(self.browser and self.browser.active),
+                    'schedule': dict(self.schedule), 'monitoring': self.monitoring.public(), 'browser_active': bool(self.browser and self.browser.active),
                     'session': {'saved': self.state_path.exists(), 'connected': self.connected,
                                 'status': self.session_status, 'message': self.session_message},
                     'default_quality': self.catalog.get('default_quality', 0), 'output': str(self.output)}
@@ -387,10 +390,15 @@ class Application(RuntimeState):
                     'preferred': p.get('section_qualities', {}).get(section['id'], 0)})
             return {'id': p['id'], 'title': p['title'], 'sections': sections, 'files': [g | {'qualities': sorted(g['qualities'], reverse=True)} for g in groups.values()], 'choices': p.get('choices', {})}
 
-    def queue(self, ids):
+    def queue(self, ids, file_keys=None, monitoring=False):
         with self.lock:
-            self.idle()
+            if not monitoring:
+                self.idle()
+            elif not self.job['running'] or self.job['kind'] != 'monitor':
+                raise ValueError('Automatic queueing requires a monitoring check.')
             batch = []
+            known_ids = {entry['id'] for entry in self.items} if monitoring else set()
+            known_keys = {(entry.get('project_id'), entry.get('file', {}).get('key')) for entry in self.items} if monitoring else set()
             for project_id in dict.fromkeys(ids):
                 if project_id in self.catalog.get('excluded_ids', []):
                     continue
@@ -398,14 +406,22 @@ class Application(RuntimeState):
                 if not p.get('scanned') or not p['variants']:
                     raise ValueError('Scan all selected projects and detect files before queuing them.')
                 for item in self.selected(p):
+                    if file_keys is not None and item['key'] not in file_keys:
+                        continue
                     entry = {'project': p['title'] + (' / ' + item['section_title'] if item.get('section_title') else ''),
                              'project_id': project_id, 'project_url': p['url'], 'folder': p['folder'], 'file': item,
                              'filename': item['filename'], 'status': 'queued', 'bytes': 0, 'total': None, 'message': ''}
                     entry['id'] = self.entry_id(entry)
+                    if monitoring:
+                        if entry['id'] in known_ids or (project_id, item['key']) in known_keys:
+                            continue  # Never modify a manual queue record or an active transfer.
+                        entry.update(monitor_auto=True, monitor_attempted=False)
                     batch.append(entry)
                     if len(batch) + len(self.items) > int(os.environ.get('HI10_MAX_QUEUE_ITEMS', '50000')):
                         raise ValueError('Queue item limit reached. Clear completed entries before adding more.')
             if not batch:
+                if monitoring:
+                    return {'added': 0, 'pending': self.pending_count()}
                 raise ValueError('Choose at least one scanned project with downloads.')
             existing = {entry['id']: entry for entry in self.items}
             added = 0
@@ -429,7 +445,7 @@ class Application(RuntimeState):
         with self.lock:
             if self.shutdown.is_set():
                 raise ValueError('The service is shutting down.')
-            if self.download_job['running'] or (self.job['running'] and self.job['kind'] != 'scan'):
+            if self.download_job['running'] or (self.job['running'] and self.job['kind'] not in {'scan', 'monitor'}):
                 raise ValueError('A download batch or session operation is already running.')
             if not self.pending_count():
                 raise ValueError('The queue has no pending files.')
@@ -468,9 +484,19 @@ class Application(RuntimeState):
                         with self.lock:
                             entry.update(bytes=size, total=total)
                     with self.lock:
+                        if self.download_job.get('source') == 'monitor' and (self.monitoring.state['paused'] or entry.get('project_id') not in self.monitoring.state['projects'] or entry.get('project_id') in self.catalog.get('excluded_ids', [])):
+                            continue
+                        if entry.get('monitor_auto'):
+                            entry['monitor_attempted'] = True
                         entry['status'] = 'downloading'
                         self._queue_groups_cache.clear()
                         self.download_job['message'] = entry['filename']
+                        if entry.get('monitor_auto'):
+                            try:
+                                self.save_queue()
+                            except OSError:
+                                self.request_shutdown()
+                                raise
                     attempts = 0
                     try:
                         if not entry.get('url_override') and 'mirrors' not in item and item.get('key'):
@@ -592,13 +618,28 @@ class Application(RuntimeState):
                 if target not in {'scan', 'download'}:
                     raise ValueError('Choose which operation to stop.')
                 job = self.download_job if target == 'download' else self.job
-                if target == 'scan' and job['kind'] != 'scan':
+                if target == 'scan' and job['kind'] not in {'scan', 'monitor'}:
                     raise ValueError('No scan is running.')
                 if job['running']:
                     (self.download_cancel if target == 'download' else self.cancel).set()
                     job['message'] = 'Stop requested. Waiting for the current network operation…'
                 if target == 'download':
                     self.cancel_schedule()
+                if job.get('source') == 'monitor' or target == 'scan' and job['kind'] == 'monitor':
+                    self.monitoring.settings(True, self.monitoring.state['interval_minutes'])
+            return {}
+        if path.startswith('/api/monitoring/'):
+            with self.lock:
+                if path == '/api/monitoring/projects':
+                    self.monitoring.set_projects(data.get('ids'), data.get('enabled'))
+                elif path == '/api/monitoring/settings':
+                    self.monitoring.settings(data.get('paused'), data.get('interval_minutes'))
+                elif path == '/api/monitoring/check':
+                    self.monitoring.check_now()
+                elif path == '/api/monitoring/clear':
+                    self.monitoring.clear()
+                else:
+                    raise ValueError('Unknown monitoring action')
             return {}
         with self.lock:
             if path in {'/api/downloads/start-selected', '/api/downloads/remove-selected'}:

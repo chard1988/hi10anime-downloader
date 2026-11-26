@@ -41,7 +41,7 @@ function applyState(result) {
   downloadPage = result.download_page || 0;
 }
 function operationsBusy() { return !!state?.job.running || !!state?.download_job?.running; }
-function canStartDownloads() { return !state?.download_job?.running && (!state?.job.running || state.job.kind === 'scan'); }
+function canStartDownloads() { return !state?.download_job?.running && (!state?.job.running || ['scan','monitor'].includes(state.job.kind)); }
 function schedulePoll() {
   clearTimeout(pollTimer);
   if (unlocked && !document.hidden) pollTimer = setTimeout(refreshState, operationsBusy() ? 1500 : 15000);
@@ -70,7 +70,8 @@ function requestLabel(path) {
     '/api/session/verify':'Verifying saved session…','/api/session/import':'Importing session…',
     '/api/browser/start':'Opening login browser…','/api/browser/capture':'Saving and verifying session…',
     '/api/downloads/start':'Starting downloads…','/api/downloads/schedule':'Saving schedule…',
-    '/api/stop':'Requesting stop…'})[path] || 'Saving changes…';
+    '/api/monitoring/projects':'Updating monitored projects…','/api/monitoring/check':'Requesting monitoring check…',
+    '/api/monitoring/settings':'Saving monitoring settings…','/api/stop':'Requesting stop…'})[path] || 'Saving changes…';
 }
 async function action(path, data = {}, message) {
   if (pendingAction) return false;

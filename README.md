@@ -8,6 +8,9 @@ for the image, installation files and exact-image validation reports.
 
 ## Features
 
+- Opt-in project monitoring checks periodically and automatically downloads existing
+  missing files and new additions using your quality and section selections.
+
 - Import a desktop Playwright session, or sign in using the embedded Chromium view.
   Fill login fields does not submit; complete challenges yourself. CAPTCHA is not
   bypassed, and successful login cannot be guaranteed.
@@ -111,7 +114,7 @@ a link is authenticated; private URLs are not included in ordinary status polls.
 
 Settings shows the container destination and scheduling picker. Change the host
 folder through container mappings. Schedules persist and can run after an overdue
-restart; unscheduled queues do not auto-start. The container must be available at
+restart; unscheduled manual queues do not auto-start. The container must be available at
 the chosen time. Closing the browser does not cancel background work.
 
 ## Development and distribution
@@ -141,3 +144,30 @@ The beta release workflow tests and publishes only explicit beta refs to GHCR an
 GitHub prereleases. Strict stable-readiness checks remain separate; beta publication
 does not waive their findings. CA submission and stable/latest publishing remain
 disabled. See [the release procedure](docs/RELEASE_GUIDE.md).
+
+## Project monitoring (development)
+
+In the project library, click **Monitor** on a project or select checkboxes and
+**Monitor selected**. This enables automatic checks and downloads of existing
+missing files and future additions. Use **Monitoring** in the page header to set
+an interval (15 minutes–7 days, default 60 minutes), pause/resume, or check now.
+The **Monitored** filter shows watched, included projects.
+
+The container must stay running and have a working saved Hi10 session. Browser
+closure does not stop monitoring. Checks run sequentially in small batches, can
+run alongside downloads, and use the project's quality and section selections.
+A saved download schedule takes priority over automatic starts. Existing manual
+queue entries are preserved and remain manual; only files added by monitoring
+auto-start. Failed/interrupted attempts need manual Retry. **Stop batch** on an
+automatic batch pauses monitoring until resumed in its settings.
+
+Already handled files are tracked across restarts and queue clearing, so they
+are not repeatedly downloaded or upgraded. Unmonitoring prevents further
+automatic starts for the project; a transfer already in progress may finish.
+Exclusions suspend its checks/starts. Unmonitor then monitor again to deliberately
+reset its tracked history; verified files and existing queue entries are retained.
+Monitoring is limited to 200 projects and 100,000 tracked file identities.
+
+This feature is in source development and is not in the published beta.2 image.
+For a local unRAID test, package the source and use the installer's
+`--build-local` option as described in [the installation guide](docs/UNRAID_INSTALL.md).

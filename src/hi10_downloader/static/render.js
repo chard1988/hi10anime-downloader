@@ -46,13 +46,19 @@ function render() {
   $('next-downloads').disabled = state.download_page + 1 >= (state.download_page_total || 1);
   $('job-bar').hidden = !libraryBusy && !state.job.error && !state.job.kind;
   $('job-spinner').hidden = !state.job.running;
-  $('stop-job').hidden = !state.job.running || state.job.kind !== 'scan';
+  $('stop-job').hidden = !state.job.running || !['scan','monitor'].includes(state.job.kind);
   $('stop-job').disabled = !!pendingAction;
-  $('job-kind').textContent = state.job.error ? 'Needs attention' : state.job.running ? ({scan:'Scanning project pages',download:'Downloading your selection',refresh:'Loading library',login:'Opening login browser',session:'Verifying session',restore:'Restoring saved data',preferences:'Updating library preferences'}[state.job.kind] || 'Working') : 'Finished';
+  $('job-kind').textContent = state.job.error ? 'Needs attention' : state.job.running ? ({monitor:'Checking monitored projects',scan:'Scanning project pages',download:'Downloading your selection',refresh:'Loading library',login:'Opening login browser',session:'Verifying session',restore:'Restoring saved data',preferences:'Updating library preferences'}[state.job.kind] || 'Working') : 'Finished';
   $('job-message').textContent = state.job.error || state.job.message;
   $('job-progress').textContent = state.job.total ? `${state.job.done} / ${state.job.total}` : '';
   const jobError = [state.job.error, downloadJob.error].filter(Boolean).join(' ');
   if (jobError && jobError !== lastJobError) toast(jobError);
   lastJobError = jobError;
+  const monitoring = state.monitoring || {count:0,active_count:0,paused:false};
+  $('monitoring-settings').textContent = `Monitoring${monitoring.count ? ` · ${monitoring.count}${monitoring.paused ? ' paused' : ''}` : ''}`;
+  $('monitoring-status').textContent = `${monitoring.count} monitored · ${monitoring.active_count} active. ${monitoring.message || ''}${monitoring.next_check && !monitoring.paused ? ` Next check: ${new Date(monitoring.next_check*1000).toLocaleString()}.` : ''}`;
+  $('save-monitoring').disabled = !!pendingAction;
+  $('check-monitoring').disabled = !!pendingAction || !monitoring.active_count || monitoring.paused || !session.connected;
+  $('clear-monitoring').disabled = !!pendingAction || !monitoring.count;
   renderProjects(); renderDownloads(); renderDownloadStartProgress();
 }
