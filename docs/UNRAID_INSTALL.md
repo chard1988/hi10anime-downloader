@@ -1,8 +1,8 @@
 # Install Hi10 Download Manager on unRAID
 
-Version: **0.3.0-beta.2**, Linux/amd64, testing prerelease.
-Image: `ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2`.
-Release: https://github.com/chard1988/hi10anime-downloader/releases/tag/v0.3.0-beta.2
+Version: **0.3.0-beta.3**, Linux/amd64, testing prerelease.
+Image: `ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.3`.
+Release: https://github.com/chard1988/hi10anime-downloader/releases/tag/v0.3.0-beta.3
 
 This beta has disclosed security findings and embedded-browser compatibility
 limitations. Use a private LAN/Tailnet for testing. It is not a stable release,
@@ -32,7 +32,7 @@ GitHub reference: https://docs.github.com/en/packages/working-with-a-github-pack
 3. Open **Docker → hi10-downloader → Edit**. Change **Repository** to:
 
    ```text
-   ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2
+   ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.3
    ```
 
 4. Keep the existing `/config`, `/downloads`, host web port and app password.
@@ -62,8 +62,8 @@ Open the unRAID Terminal and run as root:
 set -eu
 mkdir -p /mnt/user/appdata/hi10-install
 cd /mnt/user/appdata/hi10-install
-curl -fL --retry 3 -o hi10-unraid.tar.gz https://github.com/chard1988/hi10anime-downloader/releases/download/v0.3.0-beta.2/hi10-unraid.tar.gz
-curl -fL --retry 3 -o SHA256SUMS https://github.com/chard1988/hi10anime-downloader/releases/download/v0.3.0-beta.2/SHA256SUMS
+curl -fL --retry 3 -o hi10-unraid.tar.gz https://github.com/chard1988/hi10anime-downloader/releases/download/v0.3.0-beta.3/hi10-unraid.tar.gz
+curl -fL --retry 3 -o SHA256SUMS https://github.com/chard1988/hi10anime-downloader/releases/download/v0.3.0-beta.3/SHA256SUMS
 awk '$2 == "hi10-unraid.tar.gz" {print}' SHA256SUMS | sha256sum -c -
 tar -xzf hi10-unraid.tar.gz
 cd hi10-unraid
@@ -82,7 +82,7 @@ and configure:
 
 | Field | Value |
 | --- | --- |
-| Repository | `ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2` |
+| Repository | `ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.3` |
 | Network Type | Bridge |
 | Privileged | Off |
 | Container Web Port | `8080` |
@@ -114,7 +114,7 @@ remove the helper after exporting. Docker does not need rebuilding for session i
 After connection, refresh projects, scan a small selection, add files to the queue
 and click Start selected. Same-quality alternative links are checked at download
 time; all-dead alternatives fail without reducing quality. Queueing alone does not
-start unscheduled manual downloads. Opt-in monitoring in development can start its own new entries. Closing the browser does not stop server-side downloads.
+start unscheduled manual downloads. Opt-in monitoring can start its own new entries. Closing the browser does not stop server-side downloads.
 
 ## Manual fallback and troubleshooting
 

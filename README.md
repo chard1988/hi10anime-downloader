@@ -1,9 +1,9 @@
 # Hi10 Download Manager
 
 A self-hosted project scanner and MKV download queue, with a web interface and CLI.
-**0.3.0-beta.2 is a testing prerelease**, with disclosed security and embedded-browser
+**0.3.0-beta.3 is a testing prerelease**, with disclosed security and embedded-browser
 compatibility limits. It is not a stable release or Community Applications listing.
-See the [beta release](https://github.com/chard1988/hi10anime-downloader/releases/tag/v0.3.0-beta.2)
+See the [beta release](https://github.com/chard1988/hi10anime-downloader/releases/tag/v0.3.0-beta.3)
 for the image, installation files and exact-image validation reports.
 
 ## Features
@@ -60,7 +60,7 @@ session. You do not need another login or a Docker rebuild.
 Published beta image:
 
 ```sh
-docker pull ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2
+docker pull ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.3
 ```
 
 See [unRAID install/upgrade instructions](docs/UNRAID_INSTALL.md). Existing users
@@ -145,7 +145,7 @@ GitHub prereleases. Strict stable-readiness checks remain separate; beta publica
 does not waive their findings. CA submission and stable/latest publishing remain
 disabled. See [the release procedure](docs/RELEASE_GUIDE.md).
 
-## Project monitoring (development)
+## Project monitoring
 
 In the project library, click **Monitor** on a project or select checkboxes and
 **Monitor selected**. This enables automatic checks and downloads of existing
@@ -168,6 +168,5 @@ Exclusions suspend its checks/starts. Unmonitor then monitor again to deliberate
 reset its tracked history; verified files and existing queue entries are retained.
 Monitoring is limited to 200 projects and 100,000 tracked file identities.
 
-This feature is in source development and is not in the published beta.2 image.
-For a local unRAID test, package the source and use the installer's
-`--build-local` option as described in [the installation guide](docs/UNRAID_INSTALL.md).
+Monitoring is included in beta.3. Follow [the installation guide](docs/UNRAID_INSTALL.md)
+to update an existing installation while retaining appdata and downloaded files.

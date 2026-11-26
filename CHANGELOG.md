@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0b3 — 2026-11-26 testing prerelease
 
 - Include explicit download tables outside the first WordPress content block,
   retaining deduplication and highest-quality selection.

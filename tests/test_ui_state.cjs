@@ -17,7 +17,7 @@ assert.equal(context.current().projects[1].title,'Project 1');
 fields.search.value='Updated title';
 assert.equal(context.page().page.length,1);
 assert.equal(context.page().page[0].id,'0');
-Object.assign(fields,{'selection-count':{},'select-all':{},'scan-selected':{},'download-selected':{},'exclude-selected':{},'include-selected':{}});
+Object.assign(fields,{'selection-count':{},'select-all':{},'scan-selected':{},'download-selected':{},'exclude-selected':{},'include-selected':{},'monitor-selected':{},'unmonitor-selected':{}});
 const selection=source.slice(source.indexOf('function updateSelection() {'),source.indexOf('function renderProjects('));
 vm.runInContext(`${selection};this.select=id=>selected.add(id);this.updateSelection=updateSelection;this.canStart=canStartDownloads;let pendingAction=null;`,context);
 fields.search.value='';
@@ -27,11 +27,17 @@ context.select('0');context.updateSelection();
 assert.equal(fields['scan-selected'].disabled,false,'a running download must not block selected scans');
 assert.equal(fields['download-selected'].disabled,true,'queue mutations remain protected during downloads');
 assert.equal(context.canStart(),false,'a second download batch must be blocked');
+assert.equal(fields['monitor-selected'].disabled,false,'monitoring configuration remains available during downloads');
+assert.equal(fields['unmonitor-selected'].disabled,true,'unmonitor needs a selected monitored project');
 context.apply({projects:null,job:{running:true,kind:'scan'},download_job:{running:false},session:{connected:true}});
 context.updateSelection();
 assert.equal(fields['scan-selected'].disabled,true,'a second scan must be blocked');
 assert.equal(context.canStart(),true,'a download may start during a scan');
-console.log('UI state checks passed: incremental updates and bounded project pagination.');
+context.apply({projects:null,job:{running:true,kind:'monitor'},download_job:{running:false},session:{connected:true}});
+context.updateSelection();
+assert.equal(context.canStart(),true,'downloads can start alongside a monitoring check');
+assert.equal(fields['scan-selected'].disabled,true,'a monitoring check owns the library scan worker');
+console.log('UI state checks passed: incremental updates, bounded pagination and monitoring concurrency.');
 
 // A slow request must display feedback before the server responds and block a
 // second click. Exercise the actual action handler with a deferred API response.
@@ -88,3 +94,12 @@ assert.deepEqual(Array.from(context.page().filtered,p=>p.id),['excluded']);
 fields.filter.value='all';
 assert.equal(context.page().filtered.length,3);
 console.log('Project filter checks passed: excluded projects stay out of Ready to download.');
+
+fields.filter.value='monitored';
+context.apply({projects:[
+  {id:'watched',title:'Watched',monitored:true,excluded:false},
+  {id:'excluded-watch',title:'Excluded watch',monitored:true,excluded:true},
+  {id:'manual',title:'Manual',monitored:false,excluded:false}
+]});
+assert.deepEqual(Array.from(context.page().filtered,p=>p.id),['watched']);
+console.log('Monitoring filter checks passed: only monitored, included projects appear.');

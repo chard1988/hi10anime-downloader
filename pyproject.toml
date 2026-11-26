@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hi10-downloader"
-version = "0.3.0b2"
+version = "0.3.0b3"
 description = "Session-based Hi10 project scanner and MKV downloader"
 requires-python = ">=3.12"
 license = "MIT"
