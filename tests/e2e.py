@@ -32,8 +32,34 @@ def main():
             with sync_playwright() as playwright:
                 browser=playwright.chromium.launch(headless=True)
                 page=browser.new_page()
+                script_errors=[]
+                page.on('pageerror',lambda error:script_errors.append(str(error)))
                 page.goto(address)
                 page.locator('#web-password').fill('test-password');page.locator('#unlock-form button').click()
+                # Monitoring is configured through the real authenticated API; no scheduler or remote I/O.
+                page.get_by_role('button',name='Monitor project E2E project',exact=True).click()
+                page.get_by_role('button',name='Unmonitor project E2E project',exact=True).wait_for()
+                assert app.monitoring.public()['count']==1
+                page.locator('#filter').select_option('monitored')
+                assert page.locator('#projects tr').count()==1
+                page.locator('#monitoring-settings').click()
+                page.locator('#monitoring-interval').fill('30')
+                page.locator('#monitoring-paused').check()
+                page.locator('#save-monitoring').click()
+                page.get_by_text('1 monitored · 1 active. Monitoring paused.',exact=True).wait_for()
+                assert app.monitoring.state['paused'] and app.monitoring.state['interval_minutes']==30
+                page.keyboard.press('Escape')
+                page.get_by_role('button',name='Unmonitor project E2E project',exact=True).click()
+                page.locator('#projects tr').wait_for(state='hidden')
+                page.locator('#filter').select_option('all')
+                page.get_by_role('checkbox',name='Select E2E project',exact=True).check()
+                page.locator('#monitor-selected').click()
+                page.get_by_role('button',name='Unmonitor project E2E project',exact=True).wait_for()
+                page.locator('#unmonitor-selected').click()
+                page.get_by_role('button',name='Monitor project E2E project',exact=True).wait_for()
+                page.set_viewport_size({'width':390,'height':844})
+                assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Library overflows mobile viewport'
+                page.set_viewport_size({'width':1280,'height':720})
                 page.locator('[data-view="downloads"]').click()
                 group=page.locator('.queue-project-group')
                 group.locator('summary strong').click()
@@ -70,8 +96,9 @@ def main():
                 page.locator('#app').wait_for(state='visible')
                 assert page.locator('#unlock').is_hidden()
                 assert not page.locator('#download-job-bar').count()
+                assert not script_errors, script_errors
                 browser.close()
-                print('Browser E2E: login, grouped server pagination, details, filters, URL edit, settings, exclusion, persistent session passed.')
+                print('Browser E2E: monitoring controls/settings/filter/bulk actions, login, grouped server pagination, details, filters, URL edit, settings, exclusion, persistent session passed.')
         finally:
             app.close(timeout=2);server.close();thread.join(timeout=2)
 

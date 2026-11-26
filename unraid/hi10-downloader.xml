@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>hi10-downloader</Name>
-  <Repository>ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2</Repository>
+  <Repository>ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.3</Repository>
   <Registry>https://github.com/chard1988/hi10anime-downloader/pkgs/container/hi10anime-downloader</Registry>
   <Network>bridge</Network>
   <Privileged>false</Privileged>

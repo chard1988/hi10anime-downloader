@@ -82,6 +82,8 @@ class RuntimeState:
                 save_json(self.access_sessions_path, {})
         for entry in self.items:
             entry.setdefault('id', self.entry_id(entry))
+        from .monitoring import ProjectMonitoring
+        self.monitoring = ProjectMonitoring(self)
 
     def allow_login(self, peer):
         with self.auth_lock:
@@ -301,12 +303,12 @@ class RuntimeState:
             target = self.schedule.get('starts_at')
             if target is None or target > (time.time() if now is None else now):
                 return False
-            if self.download_job['running'] or (self.job['running'] and self.job['kind'] != 'scan'):
+            if self.download_job['running'] or (self.job['running'] and self.job['kind'] not in {'scan', 'monitor'}):
                 return False
             if not self.pending_count():
                 self.cancel_schedule()
                 return False
-            # Only an explicitly saved schedule can auto-start after a container restart.
+            # Saved schedules start the manual queue; monitoring owns separate opt-in starts.
             self.start_downloads()
             return True
 
@@ -317,6 +319,16 @@ class RuntimeState:
             except Exception:
                 with self.lock:
                     self.schedule['message'] = 'Scheduled start needs attention. Check your saved session and queue.'
+            try:
+                self.monitoring.tick()
+            except OSError:
+                self.request_shutdown()
+                logging.getLogger(__name__).error('Monitoring storage failed; restart to recover state')
+            except Exception:
+                with self.lock:
+                    self.monitoring.retry_after = time.time() + 300
+                    self.monitoring.state['message'] = 'Monitoring scheduler needs attention. Check the saved session and queue.'
+                logging.getLogger(__name__).warning('Monitoring scheduler could not start an operation')
             with self.lock:
                 target = self.schedule.get('starts_at')
                 delay = 60 if target is None else max(2, min(60, target - time.time()))

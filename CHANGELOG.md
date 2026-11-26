@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0b3 — 2026-11-26 testing prerelease
+
+- Include explicit download tables outside the first WordPress content block,
+  retaining deduplication and highest-quality selection.
+
+- Detect explicit MKV destinations in fc.lc and Spaste download wrappers alongside
+  ouo links; deduplicate wrappers for the same file and ignore ZIP patches.
+
+- Opt-in persistent project monitoring with bulk controls, a monitored filter,
+  interval settings, pause/resume and check-now controls.
+- Automatically queue/download existing missing files and future additions using
+  current quality/section selections, without adopting manual queues or retrying
+  failed attempts indefinitely. Preserve schedules, exclusions and restart history.
+
 ## 0.3.0b2 — 2026-11-17 testing prerelease
 
 - Check same-quality episode/movie mirror links with bounded video-prefix probes before downloading; skip unavailable links and fail over between validated mirrors without lowering quality.

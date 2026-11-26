@@ -44,3 +44,24 @@ def auth_secret(value):
 def access_sessions(value):
     import re
     return mapping(value) and len(value) <= 256 and all(isinstance(k, str) and re.fullmatch('[a-f0-9]{48}', k) and type(v) is int for k,v in value.items())
+
+
+def monitoring(value):
+    import re
+    def timestamp(v):return type(v) in {int,float} and math.isfinite(v) and v>=0
+    if not mapping(value) or value.get('version')!=1 or type(value.get('paused')) is not bool:
+        return False
+    if type(value.get('interval_minutes')) is not int or not 15<=value['interval_minutes']<=10080:
+        return False
+    projects=value.get('projects')
+    if not mapping(projects) or len(projects)>200:return False
+    count=0
+    for pid,record in projects.items():
+        if not isinstance(pid,str) or not mapping(record):return False
+        seen=record.get('seen')
+        if not isinstance(seen,list) or any(not isinstance(k,str) or not re.fullmatch('[a-f0-9]{64}',k) for k in seen):return False
+        count+=len(seen)
+        if count>100000 or len(set(seen))!=len(seen) or not timestamp(record.get('next_check')):return False
+        if record.get('last_checked') is not None and not timestamp(record['last_checked']):return False
+        if record.get('last_error') is not None and not isinstance(record['last_error'],str):return False
+    return (value.get('last_run') is None or timestamp(value['last_run'])) and isinstance(value.get('message'),str)

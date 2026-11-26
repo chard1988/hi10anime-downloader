@@ -1,6 +1,6 @@
 services:
   hi10:
-    image: ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2
+    image: ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.3
     init: true
     restart: unless-stopped
     stop_grace_period: 75s

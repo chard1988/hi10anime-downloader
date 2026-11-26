@@ -48,12 +48,22 @@ def file_key(filename: str) -> str:
 
 
 def download_target(url: str) -> str:
-    """Read an explicit file destination from the site's known outbound-link wrapper."""
+    """Read explicit MKV destinations from known wrappers without visiting them."""
     parts = urlsplit(url)
+    parameter = None
     if parts.hostname in {"ouo.io", "ouo.press"} and parts.path.startswith("/s/"):
-        values = parse_qs(parts.query).get("s", [])
+        parameter = "s"
+    elif parts.hostname in {"fc.lc", "www.fc.lc"} and parts.path in {"/st", "/st/"}:
+        parameter = "url"
+    elif parts.hostname in {"spaste.com", "www.spaste.com"} and parts.path.startswith("/r/"):
+        parameter = "link"
+    if parameter:
+        values = parse_qs(parts.query).get(parameter, [])
         if len(values) == 1:
-            target = urlsplit(values[0])
+            try:
+                target = urlsplit(values[0])
+            except ValueError:
+                return url
             if target.scheme in {"http", "https"} and target.hostname and target.path.lower().endswith(".mkv"):
                 return canonical(values[0])
     return url
@@ -91,7 +101,13 @@ def parse_project(html: str, url: str) -> dict:
     files, section_labels = [], {}
     section_seasons, section_bases = {}, {}
     seen = set()
-    for anchor in root.select("a[href]"):
+    anchors = root.select("a[href]")
+    # Some WordPress pages place their download tables outside the first content
+    # block. Include those explicit tables without importing unrelated page links.
+    anchor_ids = {id(anchor) for anchor in anchors}
+    anchors.extend(anchor for anchor in soup.select("table.showLinksTable a[href]")
+                   if id(anchor) not in anchor_ids)
+    for anchor in anchors:
         target = download_target(canonical(urljoin(url, anchor["href"])))
         parts = urlsplit(target)
         filename = unquote(parts.path.rsplit("/", 1)[-1])

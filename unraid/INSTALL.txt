@@ -1,6 +1,6 @@
-Hi10 Download Manager — v0.3.0-beta.2 testing prerelease (MIT)
+Hi10 Download Manager — v0.3.0-beta.3 testing prerelease (MIT)
 
-Recommended: pull ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2.
+Recommended: pull ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.3.
 Full instructions are in docs/UNRAID_INSTALL.md and the release's INSTALL.md.
 
 Fresh install:
