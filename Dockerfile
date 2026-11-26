@@ -1,6 +1,6 @@
 FROM docker.io/library/python:3.12-slim@sha256:05a994d2344eb364cc186910f4fc8786a38215f39f00d0acc25bff33a08f4177
 
-ARG VERSION=0.3.0-beta.2
+ARG VERSION=0.3.0-beta.3
 ARG VCS_REF=uncommitted
 LABEL org.opencontainers.image.title="Hi10 Download Manager" \
       org.opencontainers.image.description="Testing-beta project scanner and download queue" \

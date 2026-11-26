@@ -10,8 +10,8 @@ remain disabled. Historical audit reports describe their dated earlier snapshots
 
 ## Git-flow release procedure
 
-1. Start `git flow release start 0.3.0-beta.2` from develop.
-2. Align pyproject/__version__ (`0.3.0b2`), Docker metadata (`0.3.0-beta.2`),
+1. Start `git flow release start 0.3.0-beta.3` from develop.
+2. Align pyproject/__version__ (`0.3.0b3`), Docker metadata (`0.3.0-beta.3`),
    changelog, release notes, template, Compose and installer. release_metadata.py
    rejects mismatched refs and all stable versions.
 3. Push the release branch. release-beta.yml builds and tests it without publishing.

@@ -13,10 +13,11 @@ def load(name):
 class BetaReleaseTests(unittest.TestCase):
     def test_beta_refs_match_python_versions_and_lowercase_registry(self):
         metadata=load('release_metadata').metadata
-        for ref in ('v0.3.0-beta.2','release/0.3.0-beta.2'):
-            result=metadata('0.3.0b2',ref,'Owner/Project')
-            self.assertEqual(result['version'],'0.3.0-beta.2')
-            self.assertEqual(result['image'],'ghcr.io/owner/project')
+        for number in (2, 3):
+            for ref in (f'v0.3.0-beta.{number}',f'release/0.3.0-beta.{number}'):
+                result=metadata(f'0.3.0b{number}',ref,'Owner/Project')
+                self.assertEqual(result['version'],f'0.3.0-beta.{number}')
+                self.assertEqual(result['image'],'ghcr.io/owner/project')
 
     def test_stable_mismatched_or_injected_release_inputs_are_rejected(self):
         metadata=load('release_metadata').metadata

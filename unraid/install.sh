@@ -8,7 +8,7 @@ case "${1:-}" in
     '') ;;
     *) printf '%s\n' 'Unknown option. Use --help.' >&2; exit 1 ;;
 esac
-hi10_image=ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.2
+hi10_image=ghcr.io/chard1988/hi10anime-downloader:0.3.0-beta.3
 
 if [ ! -f /etc/unraid-version ]; then
     printf '%s\n' 'Run this script in the unRAID Terminal, not on your desktop.' >&2
