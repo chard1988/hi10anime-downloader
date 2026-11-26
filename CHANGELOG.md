@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Include explicit download tables outside the first WordPress content block,
+  retaining deduplication and highest-quality selection.
+
 - Detect explicit MKV destinations in fc.lc and Spaste download wrappers alongside
   ouo links; deduplicate wrappers for the same file and ignore ZIP patches.
 

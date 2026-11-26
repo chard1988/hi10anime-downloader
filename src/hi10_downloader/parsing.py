@@ -101,7 +101,13 @@ def parse_project(html: str, url: str) -> dict:
     files, section_labels = [], {}
     section_seasons, section_bases = {}, {}
     seen = set()
-    for anchor in root.select("a[href]"):
+    anchors = root.select("a[href]")
+    # Some WordPress pages place their download tables outside the first content
+    # block. Include those explicit tables without importing unrelated page links.
+    anchor_ids = {id(anchor) for anchor in anchors}
+    anchors.extend(anchor for anchor in soup.select("table.showLinksTable a[href]")
+                   if id(anchor) not in anchor_ids)
+    for anchor in anchors:
         target = download_target(canonical(urljoin(url, anchor["href"])))
         parts = urlsplit(target)
         filename = unquote(parts.path.rsplit("/", 1)[-1])

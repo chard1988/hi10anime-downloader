@@ -19,6 +19,33 @@ WRAPPERS = ('https://fc.lc/st?api=fixture&url=', 'https://ouo.io/s/fixture?s=',
 
 
 class WrappedLinkTests(unittest.TestCase):
+    def test_download_tables_outside_first_content_block_are_detected(self):
+        # WordPress markup may close the article/content block before its tables.
+        prefix = '<h1>Accelerator</h1><article><div class="entry-content">Introduction</div></article>'
+        html = prefix + HTML.replace('1080p', '720p') + HTML
+        project = parse_project(html, URL)
+        self.assertEqual(project['candidate_count'], 34)
+        self.assertEqual(len(project['files']), 17)
+        self.assertTrue(all(f['resolution'] == 1080 for f in project['files']))
+
+    def test_later_content_block_tables_are_detected_once(self):
+        html = ('<div class="entry-content">Introduction</div>'
+                '<div class="entry-content">' + HTML + '</div>')
+        project = parse_project(html, URL)
+        self.assertEqual(project['candidate_count'], 17)
+        self.assertEqual(len(project['files']), 17)
+
+    def test_tables_already_inside_content_are_not_counted_twice(self):
+        project = parse_project('<div class="entry-content">' + HTML + '</div>', URL)
+        self.assertEqual(project['candidate_count'], 17)
+
+    def test_unrelated_links_outside_content_are_not_imported(self):
+        html = ('<div class="entry-content">' + HTML + '</div>'
+                '<footer><a href="https://other.example.test/advertisement.mkv">Ad</a></footer>')
+        project = parse_project(html, URL)
+        self.assertEqual(len(project['files']), 17)
+        self.assertFalse(any('advertisement' in f['filename'] for f in project['files']))
+
     def test_accelerator_table_deduplicates_three_wrappers_and_ignores_patch(self):
         project = parse_project(HTML, URL)
         self.assertEqual(project['candidate_count'], 17)
