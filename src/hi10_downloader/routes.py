@@ -34,7 +34,10 @@ class Routes:
                     query = parse_qs(urlsplit(self.path).query)
                     version = int(query['library_version'][0]) if 'library_version' in query else None
                     page = int(query.get('download_page', ['0'])[0])
-                    state = self.server.app.snapshot(version, page, query.get('download_filter', ['all'])[0], query.get('grouped', ['0'])[0] == '1', json.loads(query.get('group_pages', ['{}'])[0]))
+                    state = self.server.app.snapshot(version, page, query.get('download_filter', ['all'])[0], query.get('grouped', ['0'])[0] == '1', json.loads(query.get('group_pages', ['{}'])[0]),
+                        download_page_size=int(query.get('download_page_size', ['50'])[0]),
+                        group_page_size=int(query.get('group_page_size', ['5'])[0]),
+                        download_search=query.get('download_search', [''])[0])
                     # Queue stores private URLs on disk; expose only status fields.
                     state['downloads'] = [{k: v for k, v in e.items() if k in {'id', 'project', 'filename', 'status', 'bytes', 'total', 'message', 'destination', 'group_id'}} for e in state['downloads']]
                     self.send(200, state)
@@ -71,13 +74,16 @@ class Routes:
             except (ValueError, OSError) as exc:
                 self.send(400, {'error': str(exc) if isinstance(exc, ValueError) else 'Could not read application data.'})
             return
-        names = {'/': 'index.html', '/style.css': 'style.css'}
-        names.update({'/' + name: name for name in ('core.js', 'projects.js', 'downloads.js', 'render.js', 'details.js', 'browser.js', 'app.js')})
-        if path not in names:
+        # Vite assets live under a single public root; never fall back for unknown
+        # API paths or permit traversal/symlinks outside the built frontend.
+        from urllib.parse import unquote
+        root = (Path(__file__).parent / 'static').resolve()
+        relative = 'index.html' if path == '/' else unquote(path).lstrip('/')
+        asset = (root / relative).resolve()
+        if not asset.is_relative_to(root) or not asset.is_file() or asset.suffix not in {'.html', '.js', '.css', '.woff2', '.svg', '.ico'}:
             self.send(404, {'error': 'Not found'})
             return
-        asset = Path(__file__).parent / 'static' / names[path]
-        self.send(200, asset.read_bytes(), mimetypes.guess_type(asset.name)[0] or 'text/plain')
+        self.send(200, asset.read_bytes(), mimetypes.guess_type(asset.name)[0] or 'application/octet-stream')
 
     def do_POST(self):
         path = urlsplit(self.path).path

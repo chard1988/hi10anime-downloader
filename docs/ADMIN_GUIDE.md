@@ -105,10 +105,10 @@ claim is made that every NAS/NFS/SMB setup is supported.
 ## Validation commands
 
 ```
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend test
+pnpm --dir frontend build
 python -m unittest discover -s tests -q
-for script in src/hi10_downloader/static/*.js; do node --check "$script"; done
-node tests/test_polling.cjs
-node tests/test_ui_state.cjs
 python tests/benchmark.py
 python tests/e2e.py
 python scripts/container_smoke.py --engine podman --image localhost/hi10-downloader:beta

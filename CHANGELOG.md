@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Migrate the web interface to React and TypeScript with official shadcn Base UI
+  dashboard/login blocks, Lucide icons, Velocity theme, and Light/Dark/System modes.
+- Searchable comboboxes, Sheets for forms, Toast feedback, and paginated project
+  and queue data tables with bounded server-side queue search/page sizes.
+- Preserve scanning, monitoring, quality/section selections, grouped queue actions,
+  URL repair, scheduling, session import and embedded-browser interaction.
+- Multi-stage frontend build with a pinned Node builder, frozen pnpm lockfile, and
+  self-hosted assets served by Python without a separate Node frontend server.
+
 ## 0.3.0b3 — 2026-11-26 testing prerelease
 
 - Include explicit download tables outside the first WordPress content block,

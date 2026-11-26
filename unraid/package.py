@@ -22,6 +22,7 @@ def main():
         'THIRD_PARTY_NOTICES.md': root / 'THIRD_PARTY_NOTICES.md',
         'SECURITY.md': root / 'SECURITY.md',
         'docs/ADMIN_GUIDE.md': root / 'docs/ADMIN_GUIDE.md',
+        'docs/FRONTEND.md': root / 'docs/FRONTEND.md',
         'docs/UNRAID_INSTALL.md': root / 'docs/UNRAID_INSTALL.md',
         'docs/RELEASE_GUIDE.md': root / 'docs/RELEASE_GUIDE.md',
         'docs/HARDENING_PROGRESS.md': root / 'docs/HARDENING_PROGRESS.md',
@@ -36,6 +37,13 @@ def main():
     sources.update({str(path.relative_to(root)): path for path in (root / 'src').rglob('*')
                     if path.is_file() and (path.suffix == '.py' or 'static' in path.parts)
                     and '__pycache__' not in path.parts})
+    frontend = root / 'frontend'
+    frontend_paths = list(frontend.iterdir())
+    for directory in ('src', 'public'):
+        frontend_paths.extend((frontend / directory).rglob('*'))
+    sources.update({str(path.relative_to(root)): path for path in frontend_paths
+                    if path.is_file() and path.suffix in {'.json', '.yaml', '.ts', '.tsx', '.css', '.html', '.js', '.md'}
+                    and not path.name.endswith('.tsbuildinfo')})
     for name, source in sources.items():
         target = bundle / name
         target.parent.mkdir(parents=True, exist_ok=True)

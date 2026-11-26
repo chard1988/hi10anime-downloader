@@ -13,6 +13,8 @@ assert template.findtext('Privileged')=='false'
 assert 'MIT License' in (root/'LICENSE').read_text()
 assert '--require-hashes' in (root/'Dockerfile').read_text()
 assert '@sha256:' in (root/'Dockerfile').read_text()
+assert (root/'frontend/pnpm-lock.yaml').is_file()
+assert 'pnpm install --frozen-lockfile' in (root/'Dockerfile').read_text()
 for file in (root/'.github/workflows').glob('*.yml'):
     for match in re.finditer(r'uses:\s*([^\s]+)',file.read_text()):
         assert re.search(r'@[a-f0-9]{40}$',match[1]),match[1]

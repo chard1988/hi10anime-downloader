@@ -18,4 +18,4 @@ hi10-web = "hi10_downloader.web:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-hi10_downloader = ["static/*"]
+hi10_downloader = ["static/*", "static/assets/*"]

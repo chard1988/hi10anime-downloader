@@ -8,3 +8,12 @@ src/**/__pycache__/
 src/**/*.egg-info/
 !requirements.lock
 !LICENSE
+
+!frontend/
+!frontend/**
+frontend/node_modules/
+frontend/coverage/
+frontend/**/*.tsbuildinfo
+src/hi10_downloader/static/
+
+!THIRD_PARTY_NOTICES.md

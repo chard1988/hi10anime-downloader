@@ -58,9 +58,8 @@ jobs:
           python3 scripts/container_smoke.py --image "$CANDIDATE" --user 1000:1000 > artifacts/lifecycle-1000.txt 2>&1
       - name: JavaScript and source validation
         run: |
-          for script in src/hi10_downloader/static/*.js browser-extension/hi10-session-export/*.js; do node --check "$script"; done
-          node tests/test_polling.cjs
-          node tests/test_ui_state.cjs
+          node --check frontend/public/theme.js
+          for script in browser-extension/hi10-session-export/*.js; do node --check "$script"; done
           node tests/test_session_export.cjs
           python3 scripts/check_distribution.py
       - name: Generate SBOM and disclose beta security/compatibility findings

@@ -18,3 +18,11 @@ appdata/
 
 # Browser session exports contain authentication credentials.
 session*.json
+
+# React build inputs and generated static output.
+node_modules/
+*.tsbuildinfo
+frontend/coverage/
+src/hi10_downloader/static/assets/
+src/hi10_downloader/static/theme.js
+src/hi10_downloader/static/index.html

@@ -297,7 +297,7 @@ class Application(RuntimeState):
         self._summaries[project_id] = summary
         return summary
 
-    def snapshot(self, known_library_version=None, download_page=0, download_filter="all", grouped=False, group_pages=None):
+    def snapshot(self, known_library_version=None, download_page=0, download_filter="all", grouped=False, group_pages=None, download_page_size=50, group_page_size=5, download_search=""):
         with self.lock:
             self.manifest()  # One cheap manifest stat; no per-file work on unchanged polls.
             if self._library_payload is None:
@@ -313,10 +313,18 @@ class Application(RuntimeState):
                 self._library_payload = projects
             if download_filter not in {'all', 'queued', 'downloading', 'complete', 'failed', 'interrupted'}:
                 raise ValueError('Choose a valid queue filter.')
-            cache_key = (download_filter, id(self.items), self.library_version)
+            if type(download_page_size) is not int or download_page_size not in {5, 10, 25, 50, 100}:
+                raise ValueError('Choose a supported item page size.')
+            if type(group_page_size) is not int or group_page_size not in {5, 10, 25, 50, 100}:
+                raise ValueError('Choose a supported project page size.')
+            if not isinstance(download_search, str) or len(download_search) > 200:
+                raise ValueError('Queue search must be at most 200 characters.')
+            search = download_search.strip().casefold()
+            cache_key = (download_filter, search, id(self.items), self.library_version)
             cached = self._queue_groups_cache.get(cache_key)
             if cached is None:
-                filtered = [e for e in self.items if download_filter == 'all' or e['status'] == download_filter]
+                filtered = [e for e in self.items if (download_filter == 'all' or e['status'] == download_filter)
+                            and (not search or search in e.get('filename', '').casefold() or search in e.get('project', '').casefold())]
                 groups = {}
                 for entry in filtered:
                     group_id = entry.get('project_id') or ident(entry.get('project_url') or entry.get('project', 'Unknown project'))
@@ -328,21 +336,23 @@ class Application(RuntimeState):
                             pass
                         groups[group_id] = {'id': group_id, 'title': title, 'items': []}
                     groups[group_id]['items'].append(entry)
-                self._queue_groups_cache = {k:v for k,v in self._queue_groups_cache.items() if k[1:] == cache_key[1:]}
+                self._queue_groups_cache = {k:v for k,v in self._queue_groups_cache.items() if k[2:] == cache_key[2:]}
                 for group in groups.values():
                     group['failed'] = sum(e['status'] == 'failed' for e in group['items'])
                     group['complete'] = sum(e['status'] == 'complete' for e in group['items'])
+                if len(self._queue_groups_cache) >= 8:
+                    self._queue_groups_cache.clear()
                 self._queue_groups_cache[cache_key] = (filtered, groups)
             else:
                 filtered, groups = cached
-            page_total = max(1, (len(groups) + 4) // 5) if grouped else max(1, (len(filtered) + 49) // 50)
+            page_total = max(1, (len(groups) + group_page_size - 1) // group_page_size) if grouped else max(1, (len(filtered) + download_page_size - 1) // download_page_size)
             page = max(0, min(download_page, page_total - 1))
-            page_groups = list(groups.values())[page * 5:(page + 1) * 5] if grouped else []
+            page_groups = list(groups.values())[page * group_page_size:(page + 1) * group_page_size] if grouped else []
             group_pages = group_pages or {}
             if not isinstance(group_pages, dict) or len(group_pages) > 5 or any(not isinstance(k, str) or type(v) is not int or v < 0 for k,v in group_pages.items()):
                 raise ValueError('Invalid project item pages.')
-            pages = {g['id']: min(group_pages.get(g['id'], 0), max(0,(len(g['items'])-1)//50)) for g in page_groups}
-            page_entries = [e for g in page_groups if g['id'] in group_pages for e in g['items'][pages[g['id']]*50:(pages[g['id']]+1)*50]] if grouped else filtered[page * 50:(page + 1) * 50]
+            pages = {g['id']: min(group_pages.get(g['id'], 0), max(0,(len(g['items'])-1)//download_page_size)) for g in page_groups}
+            page_entries = [e for g in page_groups if g['id'] in group_pages for e in g['items'][pages[g['id']]*download_page_size:(pages[g['id']]+1)*download_page_size]] if grouped else filtered[page * download_page_size:(page + 1) * download_page_size]
             downloads = []
             for entry in page_entries:
                 public = {k: v for k, v in entry.items() if k in {'id', 'project', 'filename', 'status', 'bytes', 'total', 'message'}}
@@ -363,7 +373,7 @@ class Application(RuntimeState):
             return {'projects': None if unchanged or delta else [p | self.monitoring.public_project(p['id']) for p in self._library_payload], 'project_updates': updates,
                     'app_version': __version__, 'library_version': self.library_version, 'job': public_job,
                     'download_job': dict(self.download_job), 'downloads': downloads,
-                    'download_groups': public_groups, 'download_page_total': page_total,
+                    'download_groups': public_groups, 'download_page_total': page_total, 'download_group_total': len(groups),
                     'download_filtered_total': len(filtered), 'download_filter': download_filter,
                     'download_page': page, 'download_total': len(self.items), 'pending_count': self.pending_count(),
                     'schedule': dict(self.schedule), 'monitoring': self.monitoring.public(), 'browser_active': bool(self.browser and self.browser.active),

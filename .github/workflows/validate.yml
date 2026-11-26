@@ -29,9 +29,7 @@ jobs:
           docker run --rm --entrypoint python -v "$PWD/tests:/tests:ro" hi10-downloader:beta /tests/benchmark.py
       - name: JavaScript checks
         run: |
-          for script in src/hi10_downloader/static/*.js; do node --check "$script"; done
-          node tests/test_polling.cjs
-          node tests/test_ui_state.cjs
+          node --check frontend/public/theme.js
           node --check browser-extension/hi10-session-export/exporter.js
           node --check browser-extension/hi10-session-export/popup.js
           node tests/test_session_export.cjs

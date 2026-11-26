@@ -15,7 +15,7 @@ class DisconnectTests(unittest.TestCase):
         handler.path='/api/state'
         handler.close_connection=False
         handler.authenticated=lambda:True
-        handler.server=SimpleNamespace(app=SimpleNamespace(snapshot=lambda *args:{'downloads':[]}))
+        handler.server=SimpleNamespace(app=SimpleNamespace(snapshot=lambda *args, **kwargs:{'downloads':[]}))
         output=BytesIO()
         writes=0
         def write(data):

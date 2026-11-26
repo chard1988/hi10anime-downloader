@@ -35,10 +35,13 @@ Use it only for content you are authorized to access/download.
 
 ## Install locally
 
-Linux and Python 3.12 are the tested release target. Other Python/platform versions
+Linux and Python 3.12 are the tested release target. Build the UI with Node 24
+and pnpm 11.25.0 before starting the source checkout. Other Python/platform versions
 are development conveniences until separately validated.
 
 ```sh
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend build
 python3 -m venv .venv
 .venv/bin/pip install --require-hashes -r requirements.lock
 .venv/bin/pip install --no-deps --no-build-isolation -e .
@@ -107,7 +110,7 @@ count includes failed attempts processed in the batch, not only successful files
 Failed rows retain the specific saved failure cause and retry count. Older generic
 failure records gain new details after retrying.
 
-View download link opens an editable dialog for pending/failed/interrupted files.
+View download link opens an editable Sheet for pending/failed/interrupted files.
 Stop jobs first. Save URL keeps filename/destination, marks the item queued and does
 not start it. Manually edited links persist across restart/requeue. Viewing/opening
 a link is authenticated; private URLs are not included in ordinary status polls.
@@ -120,10 +123,10 @@ the chosen time. Closing the browser does not cancel background work.
 ## Development and distribution
 
 ```sh
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend test
+pnpm --dir frontend build
 .venv/bin/python -m unittest discover -s tests -q
-for script in src/hi10_downloader/static/*.js; do node --check "$script"; done
-node tests/test_polling.cjs
-node tests/test_ui_state.cjs
 .venv/bin/python tests/benchmark.py
 .venv/bin/python tests/e2e.py
 ```
@@ -170,3 +173,20 @@ Monitoring is limited to 200 projects and 100,000 tracked file identities.
 
 Monitoring is included in beta.3. Follow [the installation guide](docs/UNRAID_INSTALL.md)
 to update an existing installation while retaining appdata and downloaded files.
+
+## React UI development
+
+The `feature/react-typescript-ui` branch migrates the interface to React/TypeScript,
+Vite and shadcn Base UI. The published beta.3 image retains the previous interface
+until a future release. Read [the frontend guide](docs/FRONTEND.md) for setup,
+component/theme provenance, API compatibility and validation.
+
+Before running the Python web service from source, build the frontend:
+
+```sh
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend build
+```
+
+Docker performs the frontend build and tests in a separate pinned Node stage; the
+runtime remains Python/Waitress. Preserve existing unRAID data mappings when testing.

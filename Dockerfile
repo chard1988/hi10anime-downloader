@@ -1,3 +1,12 @@
+# Compile React with isolated frontend tooling; Python serves the resulting assets.
+FROM docker.io/library/node:24-bookworm-slim@sha256:873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530 AS frontend
+WORKDIR /frontend
+RUN npm install --global pnpm@11.25.0
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+RUN pnpm test && pnpm build
+
 FROM docker.io/library/python:3.12-slim@sha256:05a994d2344eb364cc186910f4fc8786a38215f39f00d0acc25bff33a08f4177
 
 ARG VERSION=0.3.0-beta.3
@@ -29,7 +38,11 @@ RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
+COPY --from=frontend /src/hi10_downloader/static ./src/hi10_downloader/static
 RUN pip install --no-deps --no-build-isolation .
+# Keep frontend versions/integrities visible to source/SBOM inspection.
+COPY frontend/package.json frontend/pnpm-lock.yaml ./frontend-metadata/
+COPY THIRD_PARTY_NOTICES.md ./
 USER 99:100
 VOLUME ["/config", "/downloads"]
 EXPOSE 8080
