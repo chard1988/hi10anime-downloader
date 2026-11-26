@@ -4,6 +4,8 @@ import {
   ArrowUpDown,
   Check,
   Download,
+  FolderCheck,
+  FolderDown,
   Eye,
   EyeOff,
   FileSearch,
@@ -263,13 +265,25 @@ export function ProjectsPage({ app, onDownloads }: { app: Application; onDownloa
           </Button>
         </ButtonGroup>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
           {
             label: 'Projects in library',
             value: state.projects.length,
             description: 'Your Hi10 collection',
             icon: Folder,
+          },
+          {
+            label: 'Downloaded projects',
+            value: state.projects.filter((p) => !!p.count && p.remaining === 0).length,
+            description: 'All selected files downloaded',
+            icon: FolderCheck,
+          },
+          {
+            label: 'Ready for download projects',
+            value: state.projects.filter((p) => !p.excluded && (p.remaining || 0) > 0).length,
+            description: 'Projects with files remaining, excluding excluded projects',
+            icon: FolderDown,
           },
           {
             label: 'Ready to download',
