@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Re-scan selected projects directly from Downloads using project checkboxes,
-  allowing active downloads to continue while skipping excluded projects.
+- Remove selected project groups from the Downloads queue across all item pages,
+  preserving downloaded files and library records. Replaces the queue re-scan action.
 
 - Saved total download speed limit in kbps and 1–8 parallel file transfers in the
   download settings Sheet, with shared throttling, batch limits and cancellation.

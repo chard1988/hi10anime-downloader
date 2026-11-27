@@ -723,6 +723,21 @@ class Application(RuntimeState):
                     raise ValueError('Unknown monitoring action')
             return {}
         with self.lock:
+            if path == '/api/downloads/remove-projects':
+                self.idle()
+                ids = data.get('ids')
+                if not isinstance(ids, list) or not ids or any(not isinstance(pid, str) for pid in ids):
+                    raise ValueError('Select queue projects first.')
+                def group_id(entry):
+                    return entry.get('project_id') or ident(entry.get('project_url') or entry.get('project', 'Unknown project'))
+                ids = set(ids)
+                if not ids.issubset({group_id(entry) for entry in self.items}):
+                    raise ValueError('Some selected projects are no longer queued. Clear the selection and try again.')
+                self.items = [entry for entry in self.items if group_id(entry) not in ids]
+                self.save_queue()
+                if not self.pending_count():
+                    self.cancel_schedule()
+                return {}
             if path in {'/api/downloads/start-selected', '/api/downloads/remove-selected'}:
                 ids = data.get('ids')
                 if not isinstance(ids, list) or not ids or any(not isinstance(i, str) for i in ids):

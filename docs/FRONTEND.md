@@ -112,10 +112,10 @@ The default installer still pulls the published beta.3 image and will not select
 this development UI. No new public release is created by this migration branch.
 
 
-Downloads has a Re-scan selected projects bulk action. Select project group
-checkboxes, then use the button to refresh those project pages. A connected
-session is required. Excluded or removed library projects are skipped, and an
-existing library operation prevents another scan. Downloads can keep running.
-Re-scanning refreshes the library's detected files; it does not requeue files,
-change manually edited queue URLs, or automatically retry failures. Queue the
-project from the library when you want to refresh its pending queue records.
+Downloads has a Remove selected projects bulk action. Select the project group
+checkboxes to remove all queue entries for those projects, including completed
+history and entries on other item pages. Downloaded files, library projects,
+monitoring choices and exclusions are retained. Removal waits until library and
+download jobs stop. Queue projects no longer in the library can also be removed.
+The action does not need a connected Hi10 session. Stale selections are rejected
+without partial changes. Emptying the pending queue cancels any saved start time.

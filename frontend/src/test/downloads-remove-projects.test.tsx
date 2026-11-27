@@ -44,7 +44,7 @@ function setup(overrides: Partial<AppState> = {}, pending: Application['pending'
       { id: 'unknown', title: 'Unknown', count: 1, complete: 0, failed: 1, page: 0, loaded: false },
     ],
     job: { running: false, kind: '' },
-    download_job: { running: true, source: 'all', done: 1, total: 3 },
+    download_job: { running: false, source: 'all', done: 1, total: 3 },
     session: { connected: true },
     schedule: { starts_at: null },
     pending_count: 3,
@@ -67,48 +67,54 @@ function setup(overrides: Partial<AppState> = {}, pending: Application['pending'
       <DownloadsPage app={app} query={query} setQuery={vi.fn()} />
     </TooltipProvider>,
   )
-  return { action, button: screen.getByRole('button', { name: 'Re-scan selected projects' }) }
+  return { action, button: screen.getByRole('button', { name: 'Remove selected projects' }) }
 }
-describe('queue project rescanning', () => {
-  it('requires project selection and scans eligible projects while downloads continue', async () => {
+describe('removing selected queue projects', () => {
+  it('removes selected groups across all item pages, including excluded and orphan groups', async () => {
     const user = userEvent.setup(),
       { action, button } = setup()
     expect(button).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Re-scan selected projects' }),
+    ).not.toBeInTheDocument()
     await user.click(screen.getByRole('checkbox', { name: 'Select all queue projects on page' }))
     expect(button).toBeEnabled()
     await user.click(button)
     expect(action).toHaveBeenCalledExactlyOnceWith(
-      '/api/scan',
-      { ids: ['included'] },
-      'Re-scanning selected project pages',
-    )
-  })
-  it('does not scan a selection consisting only of excluded projects', async () => {
-    const user = userEvent.setup(),
-      { button } = setup()
-    await user.click(
-      screen.getByRole('checkbox', { name: 'Select project Excluded for exclusion' }),
+      '/api/downloads/remove-projects',
+      { ids: ['included', 'excluded', 'unknown'] },
+      'Selected projects removed from queue; downloaded files retained',
     )
     expect(button).toBeDisabled()
   })
-  it.each(['scan', 'monitor', 'session'])(
-    'blocks a second library operation during %s',
-    async (kind) => {
-      const user = userEvent.setup(),
-        { button } = setup({ job: { kind, running: true } as AppState['job'] })
-      await user.click(screen.getByRole('checkbox', { name: 'Select all queue projects on page' }))
-      expect(button).toBeDisabled()
-    },
-  )
-  it('requires a connected session', async () => {
+  it('allows removing queue groups for projects no longer present in the library without a session', async () => {
     const user = userEvent.setup(),
-      { button } = setup({ session: { connected: false } as AppState['session'] })
+      { button, action } = setup({ session: { connected: false } as AppState['session'] })
+    await user.click(screen.getByRole('checkbox', { name: 'Select project Unknown' }))
+    expect(button).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Exclude selected projects' })).toBeDisabled()
+    await user.click(button)
+    expect(action).toHaveBeenCalledWith(
+      '/api/downloads/remove-projects',
+      { ids: ['unknown'] },
+      expect.any(String),
+    )
+  })
+  it.each(['scan', 'monitor', 'session'])('blocks removal during %s', async (kind) => {
+    const user = userEvent.setup(),
+      { button } = setup({ job: { kind, running: true } as AppState['job'] })
     await user.click(screen.getByRole('checkbox', { name: 'Select all queue projects on page' }))
     expect(button).toBeDisabled()
   })
-  it('blocks duplicate actions while a scan request is pending', async () => {
+  it('blocks removal while downloading', async () => {
     const user = userEvent.setup(),
-      { button } = setup({}, { path: '/api/scan', ids: ['included'] })
+      { button } = setup({ download_job: { running: true } as AppState['download_job'] })
+    await user.click(screen.getByRole('checkbox', { name: 'Select all queue projects on page' }))
+    expect(button).toBeDisabled()
+  })
+  it('shows immediate feedback and blocks duplicate removal requests', async () => {
+    const user = userEvent.setup(),
+      { button } = setup({}, { path: '/api/downloads/remove-projects', ids: ['included'] })
     await user.click(screen.getByRole('checkbox', { name: 'Select all queue projects on page' }))
     expect(button).toBeDisabled()
     expect(button.querySelector('.animate-spin')).not.toBeNull()

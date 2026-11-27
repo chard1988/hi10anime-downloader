@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  FileSearch,
   Link,
   Loader2,
   Play,
@@ -59,12 +58,11 @@ export function DownloadsPage({
   }, [search, query.search, setQuery])
   const selected = Object.keys(selection).filter((id) => selection[id]),
     selectedGroups = Object.keys(groupSelection).filter((id) => groupSelection[id])
-  const includedProjectIds = useMemo(
-    () =>
-      new Set(state.projects.filter((project) => !project.excluded).map((project) => project.id)),
+  const libraryProjectIds = useMemo(
+    () => new Set(state.projects.map((project) => project.id)),
     [state.projects],
   )
-  const scanIds = selectedGroups.filter((id) => includedProjectIds.has(id))
+  const selectedLibraryProjects = selectedGroups.filter((id) => libraryProjectIds.has(id))
   const busy = app.busy || !!app.pending,
     pending = !!app.pending
   const setPage = (page: number) => setQuery({ ...query, page, groups: {} })
@@ -109,9 +107,8 @@ export function DownloadsPage({
         ),
         cell: ({ row }) => (
           <Checkbox
-            aria-label={`Select project ${row.original.title} for exclusion`}
+            aria-label={`Select project ${row.original.title}`}
             checked={row.getIsSelected()}
-            disabled={!state.projects.some((p) => p.id === row.id)}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
           />
         ),
@@ -457,27 +454,37 @@ export function DownloadsPage({
         <Button
           size="sm"
           variant="outline"
-          disabled={!scanIds.length || state.job.running || pending || !state.session.connected}
-          onClick={() =>
-            app.action('/api/scan', { ids: scanIds }, 'Re-scanning selected project pages')
-          }
-        >
-          {app.pending?.path === '/api/scan' ? (
-            <Loader2 className="animate-spin" />
-          ) : (
-            <FileSearch />
-          )}
-          Re-scan selected projects
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
           disabled={!selectedGroups.length || busy}
           onClick={async () => {
             if (
               await app.action(
+                '/api/downloads/remove-projects',
+                { ids: selectedGroups },
+                'Selected projects removed from queue; downloaded files retained',
+              )
+            ) {
+              setGroupSelection({})
+              setSelection({})
+              setQuery({ ...query, groups: {} })
+            }
+          }}
+        >
+          {app.pending?.path === '/api/downloads/remove-projects' ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <Trash2 />
+          )}
+          Remove selected projects
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!selectedLibraryProjects.length || busy}
+          onClick={async () => {
+            if (
+              await app.action(
                 '/api/projects/exclude',
-                { ids: selectedGroups, excluded: true },
+                { ids: selectedLibraryProjects, excluded: true },
                 'Selected projects excluded; completed files retained',
               )
             ) {

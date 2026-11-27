@@ -3,7 +3,6 @@ from pathlib import Path
 import os
 import tempfile
 from threading import Thread
-from unittest.mock import patch
 import time
 
 from playwright.sync_api import sync_playwright, expect
@@ -130,16 +129,12 @@ def main():
                     assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Library mobile overflow'
                     page.set_viewport_size({'width':1440,'height':1000})
                     page.get_by_role('button',name='Downloads',exact=False).first.click()
-                    page.get_by_role('checkbox',name='Select project E2E project for exclusion',exact=True).check()
-                    # Exercise the authenticated scan action without accessing the website.
-                    with patch.object(app,'scan_projects') as scan:
-                        page.get_by_role('button',name='Re-scan selected projects',exact=True).click()
-                        expect(page.get_by_role('button',name='Re-scan selected projects',exact=True)).to_be_enabled()
-                        scan.assert_called_once_with({project['id']})
-                    assert len(app.items)==101, 'Re-scanning must not mutate queued downloads'
-                    page.get_by_role('button',name='Exclude selected projects',exact=True).click()
-                    page.get_by_role('checkbox',name='Select project E2E project for exclusion',exact=True).wait_for(state='hidden')
-                    assert all(e['status']=='complete' for e in app.items)
+                    page.get_by_role('checkbox',name='Select project E2E project',exact=True).check()
+                    page.get_by_role('button',name='Remove selected projects',exact=True).click()
+                    page.get_by_role('checkbox',name='Select project E2E project',exact=True).wait_for(state='hidden')
+                    assert app.items==[], 'All queue entries for the selected project must be removed'
+                    assert len(app.catalog['projects'])==1, 'Library projects must be retained'
+                    assert not app.catalog.get('excluded_ids'), 'Removal must not exclude projects'
                     page.reload();page.get_by_role('heading',name='Project library',exact=True).wait_for()
                     assert not page.get_by_label('Web interface password',exact=True).count()
                     page.get_by_role('button',name='Lock interface',exact=True).click()
@@ -155,7 +150,7 @@ def main():
                     print('Browser errors:',errors,flush=True)
                     raise
                 browser.close()
-                print('React E2E passed: unlock/lock, persisted light/dark/system themes, monitoring, details, grouped pagination, errors, URL editing, status/search, Sheets, mobile sidebar and exclusions.')
+                print('React E2E passed: unlock/lock, persisted light/dark/system themes, monitoring, details, grouped pagination, errors, URL editing, status/search, Sheets, mobile sidebar and project queue removal.')
         finally:
             app.close(timeout=2);server.close();thread.join(timeout=2)
 
