@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 import tempfile
 from threading import Thread
+from unittest.mock import patch
 import time
 
 from playwright.sync_api import sync_playwright, expect
@@ -130,6 +131,12 @@ def main():
                     page.set_viewport_size({'width':1440,'height':1000})
                     page.get_by_role('button',name='Downloads',exact=False).first.click()
                     page.get_by_role('checkbox',name='Select project E2E project for exclusion',exact=True).check()
+                    # Exercise the authenticated scan action without accessing the website.
+                    with patch.object(app,'scan_projects') as scan:
+                        page.get_by_role('button',name='Re-scan selected projects',exact=True).click()
+                        expect(page.get_by_role('button',name='Re-scan selected projects',exact=True)).to_be_enabled()
+                        scan.assert_called_once_with({project['id']})
+                    assert len(app.items)==101, 'Re-scanning must not mutate queued downloads'
                     page.get_by_role('button',name='Exclude selected projects',exact=True).click()
                     page.get_by_role('checkbox',name='Select project E2E project for exclusion',exact=True).wait_for(state='hidden')
                     assert all(e['status']=='complete' for e in app.items)

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Re-scan selected projects directly from Downloads using project checkboxes,
+  allowing active downloads to continue while skipping excluded projects.
+
 - Saved total download speed limit in kbps and 1–8 parallel file transfers in the
   download settings Sheet, with shared throttling, batch limits and cancellation.
 

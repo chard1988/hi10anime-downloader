@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  FileSearch,
   Link,
   Loader2,
   Play,
@@ -58,6 +59,12 @@ export function DownloadsPage({
   }, [search, query.search, setQuery])
   const selected = Object.keys(selection).filter((id) => selection[id]),
     selectedGroups = Object.keys(groupSelection).filter((id) => groupSelection[id])
+  const includedProjectIds = useMemo(
+    () =>
+      new Set(state.projects.filter((project) => !project.excluded).map((project) => project.id)),
+    [state.projects],
+  )
+  const scanIds = selectedGroups.filter((id) => includedProjectIds.has(id))
   const busy = app.busy || !!app.pending,
     pending = !!app.pending
   const setPage = (page: number) => setQuery({ ...query, page, groups: {} })
@@ -446,6 +453,21 @@ export function DownloadsPage({
         >
           <Trash2 />
           Remove selected
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!scanIds.length || state.job.running || pending || !state.session.connected}
+          onClick={() =>
+            app.action('/api/scan', { ids: scanIds }, 'Re-scanning selected project pages')
+          }
+        >
+          {app.pending?.path === '/api/scan' ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <FileSearch />
+          )}
+          Re-scan selected projects
         </Button>
         <Button
           size="sm"

@@ -110,3 +110,12 @@ container and back up appdata and hi10-manifest.json. Edit its Repository to
 then Apply and hard-refresh the browser. Do not run both services on the same data.
 The default installer still pulls the published beta.3 image and will not select
 this development UI. No new public release is created by this migration branch.
+
+
+Downloads has a Re-scan selected projects bulk action. Select project group
+checkboxes, then use the button to refresh those project pages. A connected
+session is required. Excluded or removed library projects are skipped, and an
+existing library operation prevents another scan. Downloads can keep running.
+Re-scanning refreshes the library's detected files; it does not requeue files,
+change manually edited queue URLs, or automatically retry failures. Queue the
+project from the library when you want to refresh its pending queue records.
