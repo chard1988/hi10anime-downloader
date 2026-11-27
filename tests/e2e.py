@@ -1,6 +1,7 @@
 """Real React browser checks with disposable state; no website downloads."""
 from pathlib import Path
 import os
+import re
 import tempfile
 from threading import Thread
 import time
@@ -78,6 +79,17 @@ def main():
                     print('React fixture: navigating to downloads',flush=True)
                     page.get_by_role('button',name='Downloads',exact=False).first.click()
                     page.get_by_role('heading',name='Downloads',exact=True).wait_for()
+                    speed=page.get_by_label('Overall download speed',exact=True)
+                    expect(speed).to_contain_text('0 B/s')
+                    with app.lock:
+                        app.download_job['running']=True
+                        app.transfer_rate.add(2*1024*1024)
+                    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+                    expect(speed).to_contain_text(re.compile(r'(KB|MB)/s'))
+                    with app.lock:app.download_job['running']=False
+                    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+                    expect(speed).to_contain_text('0 B/s')
+
                     page.get_by_role('button',name='E2E project',exact=True).click()
                     page.get_by_role('button',name='episode-000.mkv',exact=True).wait_for()
                     assert page.get_by_role('button',name='View download link',exact=True).count()==25

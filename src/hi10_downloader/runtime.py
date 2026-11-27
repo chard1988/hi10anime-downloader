@@ -82,7 +82,8 @@ class RuntimeState:
                 save_json(self.access_sessions_path, {})
         for entry in self.items:
             entry.setdefault('id', self.entry_id(entry))
-        from .transfers import valid_settings
+        from .transfers import TransferRate, valid_settings
+        self.transfer_rate = TransferRate()
         self.transfer_settings_path = self.config / 'transfer-settings.json'
         self.transfer_settings = load_json(self.transfer_settings_path, valid_settings) if self.transfer_settings_path.exists() else {
             'version': 1, 'speed_limit_kbps': 0, 'parallel_downloads': 1}

@@ -144,6 +144,7 @@ class Application(RuntimeState):
             cancel.clear()
             job = {'id': uuid.uuid4().hex, 'kind': kind, 'running': True, 'done': 0, 'total': 0, 'message': 'Starting…', 'error': None, 'project_id': None, 'project_ids': []}
             if downloading:
+                self.transfer_rate.reset()
                 self.download_job = job
             else:
                 self.job = job
@@ -372,7 +373,7 @@ class Application(RuntimeState):
             public_job['project_ids'] = self.job.get('project_ids', [])[:1]
             return {'projects': None if unchanged or delta else [p | self.monitoring.public_project(p['id']) for p in self._library_payload], 'project_updates': updates,
                     'app_version': __version__, 'library_version': self.library_version, 'job': public_job,
-                    'download_job': dict(self.download_job), 'downloads': downloads,
+                    'download_job': dict(self.download_job, speed_bytes_per_second=self.transfer_rate.speed() if self.download_job['running'] else 0), 'downloads': downloads,
                     'download_groups': public_groups, 'download_page_total': page_total, 'download_group_total': len(groups),
                     'download_filtered_total': len(filtered), 'download_filter': download_filter,
                     'download_page': page, 'download_total': len(self.items), 'pending_count': self.pending_count(),
@@ -541,10 +542,15 @@ class Application(RuntimeState):
                     if self.download_cancel.is_set():
                         raise Cancelled()
                     item = entry.get('file', {})
+                    received = 0
                     def progress(size, total):
+                        nonlocal received
                         if self.download_cancel.is_set():
                             raise Cancelled()
                         with self.lock:
+                            # Attempts report cumulative bytes, resetting to zero on retry.
+                            self.transfer_rate.add(max(0, size - received))
+                            received = size
                             entry.update(bytes=size, total=total)
                     with self.lock:
                         if self.download_job.get('source') == 'monitor' and (self.monitoring.state['paused'] or entry.get('project_id') not in self.monitoring.state['projects'] or entry.get('project_id') in self.catalog.get('excluded_ids', [])):

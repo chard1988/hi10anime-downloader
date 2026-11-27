@@ -140,3 +140,48 @@ class TransferTests(unittest.TestCase):
         with httpx.Client(transport=httpx.MockTransport(lambda r:httpx.Response(200,content=payload))) as client,self.assertRaises(Cancelled):
             download_one(client,{'url':'https://mirror.test/file.mkv'},URL,target,throttle=cancelled)
         self.assertFalse(target.exists());self.assertFalse(target.with_name(target.name+'.part').exists())
+
+    def test_speed_counts_progress_across_workers_and_retries_not_queue_totals(self):
+        from hi10_downloader.transfers import TransferRate
+        self.settings(parallel=2);self.app.queue([self.p['id']])
+        now=[0.0];self.app.transfer_rate=TransferRate(clock=lambda:now[0])
+        self.app.items[0]['bytes']=99999999  # Historical totals must not affect rate.
+        def downloaded(client,item,referer,target,progress=None):
+            with self.app.lock:
+                now[0]=2
+            progress(0,100);progress(100,100)
+            progress(0,50);progress(50,50)  # A retry resets cumulative progress.
+            target.write_bytes(b'\x1a\x45\xdf\xa3')
+            return {'url':item['url'],'size':4,'sha256':digest(target)}
+        self.app.download_job['running']=True
+        try:
+            with patch('hi10_downloader.web.make_client',self.clients),patch('hi10_downloader.web.download_one',side_effect=downloaded):
+                self.app.run_downloads()
+            self.assertEqual(self.app.snapshot(download_filter='complete')['download_job']['speed_bytes_per_second'],150)
+            self.assertEqual(self.app.snapshot(download_filter='failed')['download_job']['speed_bytes_per_second'],150)
+            self.app.download_job['running']=False
+            self.assertEqual(self.app.snapshot()['download_job']['speed_bytes_per_second'],0)
+        finally:self.app.download_job['running']=False
+
+
+
+class TransferRateTests(unittest.TestCase):
+    def test_rolling_rate_expires_when_stalled_and_resets_between_batches(self):
+        from hi10_downloader.transfers import TransferRate
+        now=[0.0];rate=TransferRate(clock=lambda:now[0])
+        self.assertEqual(rate.speed(),0)
+        now[0]=1;rate.add(1000)
+        self.assertEqual(rate.speed(),1000)
+        now[0]=2;rate.add(2000)
+        self.assertEqual(rate.speed(),1500)
+        now[0]=7;self.assertEqual(rate.speed(),0)
+        rate.add(1000);self.assertEqual(rate.speed(),200)
+        rate.reset();self.assertEqual(rate.speed(),0)
+    def test_high_frequency_parallel_samples_stay_bounded(self):
+        from hi10_downloader.transfers import TransferRate
+        now=[0.0];rate=TransferRate(clock=lambda:now[0])
+        for i in range(10000):
+            now[0]=i/1000;rate.add(1);rate.add(2)
+        self.assertLessEqual(len(rate.samples),21)
+        self.assertGreater(rate.speed(),0)
+        now[0]+=6;self.assertEqual(rate.speed(),0)

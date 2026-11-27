@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Show live overall download speed in the Downloads bulk action toolbar, combining
+  all active transfers with a bounded five-second rolling rate.
+
 - Remove selected project groups from the Downloads queue across all item pages,
   preserving downloaded files and library records. Replaces the queue re-scan action.
 

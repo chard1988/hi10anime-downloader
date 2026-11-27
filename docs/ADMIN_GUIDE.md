@@ -250,3 +250,12 @@ HTTP buffering can create short bursts; this is an application throughput target
 not a packet shaper. Metadata/mirror probes are outside the video byte budget.
 The existing six-hour per-file deadline still applies at low speed limits. Failed
 or interrupted files retain the existing manual retry/restart behavior.
+
+
+The Downloads action toolbar shows Overall speed in B/s, KB/s or MB/s. This is a
+combined video transfer rate across every worker, independent of queue filters
+and pagination, averaged over the last five seconds. It updates with active job
+polling (about 1.5 seconds), decays to zero after a stall and shows zero immediately
+when a batch stops. Retries count newly transferred bytes; verified existing files
+are not counted as network transfers. Measurements stay in memory in fixed 250 ms
+buckets, reset on each batch, and are not saved in appdata.

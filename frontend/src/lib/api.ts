@@ -44,7 +44,7 @@ export const errorText = (error: unknown) =>
     : 'Could not complete the request.'
 export function bytes(value: number | null) {
   if (!value) return '0 B'
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), 4)
+  const index = Math.max(0, Math.min(Math.floor(Math.log(value) / Math.log(1024)), 4))
   return `${(value / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${['B', 'KB', 'MB', 'GB', 'TB'][index]}`
 }
 export const qualityLabel = (value: number) => (value ? `${value}p` : 'Highest available')

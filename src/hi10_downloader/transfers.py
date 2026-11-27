@@ -33,3 +33,42 @@ class BandwidthBudget:
                 return
             if self.cancel.wait(min(remaining, .25)):
                 raise self.cancelled()
+
+
+class TransferRate:
+    """Five-second rolling byte rate in fixed buckets, guarded by the app lock."""
+    WINDOW = 5.0
+    BUCKET = .25
+
+    def __init__(self, clock=time.monotonic):
+        from collections import deque
+        self.clock = clock
+        self.samples = deque()
+        self.reset()
+
+    def reset(self):
+        self.samples.clear()
+        self.total = 0
+        self.started = self.clock()
+
+    def _expire(self, now):
+        while self.samples and self.samples[0][0] <= now - self.WINDOW:
+            self.total -= self.samples.popleft()[1]
+
+    def add(self, size):
+        now = self.clock()
+        self._expire(now)
+        if size <= 0:
+            return
+        bucket = int(now / self.BUCKET) * self.BUCKET
+        if self.samples and self.samples[-1][0] == bucket:
+            self.samples[-1][1] += size
+        else:
+            self.samples.append([bucket, size])
+        self.total += size
+
+    def speed(self):
+        now = self.clock()
+        self._expire(now)
+        elapsed = max(self.BUCKET, min(self.WINDOW, now - self.started))
+        return self.total / elapsed

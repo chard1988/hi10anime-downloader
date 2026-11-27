@@ -18,6 +18,7 @@ export type Project = {
   monitor_error?: string | null
 }
 export type Job = {
+  speed_bytes_per_second?: number
   id?: string
   kind: string
   running: boolean

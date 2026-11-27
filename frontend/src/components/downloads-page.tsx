@@ -18,6 +18,7 @@ import type { Application } from '@/hooks/use-application'
 import type { QueueGroup, QueueItem, QueueQuery } from '@/types'
 import { api, bytes, errorText } from '@/lib/api'
 import { DataTable } from '@/components/data-table'
+import { DownloadSpeed } from '@/components/download-speed'
 import { FormSheet } from '@/components/form-sheet'
 import { IconButton } from '@/components/icon-button'
 import { SearchCombobox } from '@/components/search-combobox'
@@ -417,6 +418,10 @@ export function DownloadsPage({
         <span className="mr-auto text-sm text-muted-foreground">
           {selected.length} files · {selectedGroups.length} projects selected
         </span>
+        <DownloadSpeed
+          running={state.download_job.running}
+          bytesPerSecond={state.download_job.speed_bytes_per_second || 0}
+        />
         <Button
           size="sm"
           disabled={!selected.length || !app.canStart || pending}
