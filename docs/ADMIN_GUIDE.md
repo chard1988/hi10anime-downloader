@@ -194,6 +194,10 @@ Files with one link have no extra request. Explicitly edited queue URLs stay
 authoritative and bypass alternative selection. Existing queues reuse alternatives
 from cached scan data when available. Rescan a project to refresh changed upstream
 links; adding it to the queue again refreshes pending records without duplicates.
+Requeuing skips files recognized as complete by the saved manifest and present at
+their recorded destination, even after completed queue history is cleared. Missing
+files can be queued again. Rescans retain the project's existing destination folder
+when its page title changes. This does not merge different filenames or releases.
 Older CLI plans can reuse their recorded variants, without changing queued quality.
 
 Link-check progress and the final count are shown in expanded queue-row details.

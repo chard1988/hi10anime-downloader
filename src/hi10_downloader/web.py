@@ -254,6 +254,8 @@ class Application(RuntimeState):
                     parsed = parse_project(fetch_page(client, project['url']), project['url'])
                     error = None if parsed['variants'] else 'No direct MKV links detected. This page may need a host-specific resolver.'
                     with self.lock:
+                        # The page title can change, but existing downloads keep their destination.
+                        parsed['folder'] = project.get('folder') or parsed['folder']
                         project.update({k: parsed[k] for k in ('title', 'folder', 'variants', 'candidate_count', 'sections')})
                         project.update(scanned=True, error=error)
                         if 'selected_sections' in project:
@@ -410,6 +412,8 @@ class Application(RuntimeState):
             elif not self.job['running'] or self.job['kind'] != 'monitor':
                 raise ValueError('Automatic queueing requires a monitoring check.')
             batch = []
+            reviewed = False
+            manifest = self.manifest()
             known_ids = {entry['id'] for entry in self.items} if monitoring else set()
             known_keys = {(entry.get('project_id'), entry.get('file', {}).get('key')) for entry in self.items} if monitoring else set()
             for project_id in dict.fromkeys(ids):
@@ -420,6 +424,9 @@ class Application(RuntimeState):
                     raise ValueError('Scan all selected projects and detect files before queuing them.')
                 for item in self.selected(p):
                     if file_keys is not None and item['key'] not in file_keys:
+                        continue
+                    reviewed = True
+                    if self.is_complete(p, item, manifest):
                         continue
                     entry = {'project': p['title'] + (' / ' + item['section_title'] if item.get('section_title') else ''),
                              'project_id': project_id, 'project_url': p['url'], 'folder': p['folder'], 'file': item,
@@ -433,7 +440,7 @@ class Application(RuntimeState):
                     if len(batch) + len(self.items) > int(os.environ.get('HI10_MAX_QUEUE_ITEMS', '50000')):
                         raise ValueError('Queue item limit reached. Clear completed entries before adding more.')
             if not batch:
-                if monitoring:
+                if monitoring or reviewed:
                     return {'added': 0, 'pending': self.pending_count()}
                 raise ValueError('Choose at least one scanned project with downloads.')
             existing = {entry['id']: entry for entry in self.items}
