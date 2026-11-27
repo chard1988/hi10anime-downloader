@@ -83,6 +83,24 @@ class MirrorTests(unittest.TestCase):
         self.assertEqual(result.checked,0)
         self.assertEqual(result.urls,[LINKS[0]])
 
+    def test_invalid_certificate_is_skipped_for_a_valid_same_quality_mirror(self):
+        requested=[]
+        def respond(request):
+            requested.append(str(request.url))
+            if request.url.host=='mirror-0.invalid':
+                raise httpx.ConnectError('[SSL: CERTIFICATE_VERIFY_FAILED] Hostname mismatch',request=request)
+            return httpx.Response(200,content=VIDEO)
+        with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+            result=check_mirrors(client,project()['files'][0],URL)
+        self.assertEqual(result.urls,LINKS[1:])
+        self.assertEqual(requested,LINKS)
+        def invalid_certificate(request):
+            raise httpx.ConnectError('CERTIFICATE_VERIFY_FAILED https://private/?token=SECRET',request=request)
+        with httpx.Client(transport=httpx.MockTransport(invalid_certificate)) as client:
+            with self.assertRaisesRegex(MirrorCheckError,'TLS certificate verification failed') as error:
+                check_mirrors(client,project()['files'][0],URL)
+        self.assertNotIn('SECRET',str(error.exception))
+
     def test_all_dead_stays_selected_quality_and_redacts_signed_urls(self):
         def respond(request):
             if request.url.host=='mirror-0.invalid':return httpx.Response(403)
@@ -209,6 +227,33 @@ class WebMirrorTests(unittest.TestCase):
         with self.assertRaises(Cancelled):self.run_fixture(respond)
         self.assertEqual(full,[LINKS[0]])
         self.assertEqual(entry['status'],'interrupted')
+
+    def test_certificate_failure_after_probe_uses_next_active_mirror(self):
+        entry=self.queue_project();full=[]
+        def respond(request):
+            if 'range' in request.headers:return httpx.Response(200,content=VIDEO[:4])
+            full.append(str(request.url))
+            if request.url.host=='mirror-0.invalid':
+                raise httpx.ConnectError('CERTIFICATE_VERIFY_FAILED: Hostname mismatch',request=request)
+            return httpx.Response(200,content=VIDEO)
+        self.run_fixture(respond)
+        self.assertEqual(entry['status'],'complete')
+        self.assertEqual(full,LINKS[:2])
+
+    def test_single_invalid_certificate_fails_once_with_actionable_error(self):
+        entry=self.queue_project()
+        entry['file'].pop('mirrors')
+        entry['url_override']=LINKS[0]
+        requested=[]
+        def respond(request):
+            requested.append(str(request.url))
+            raise httpx.ConnectError('CERTIFICATE_VERIFY_FAILED: Hostname mismatch',request=request)
+        self.run_fixture(respond)
+        self.assertEqual(entry['status'],'failed')
+        self.assertEqual(requested,[LINKS[0]])
+        self.assertIn('edit this item',entry['message'])
+        self.assertNotIn('after 3 attempts',entry['message'])
+        self.assertFalse(list(self.app.output.rglob('*.mkv')))
 
     def test_old_queue_uses_cached_alternatives_at_its_queued_quality(self):
         entry=self.queue_project();entry['file'].pop('mirrors')

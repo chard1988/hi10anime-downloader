@@ -29,7 +29,7 @@ from .storage import load_json, transaction, recover_transaction, delete_file
 from . import schema, __version__
 from .lifecycle import ServiceLocks
 from .routes import Routes
-from .retries import retry_delay
+from .retries import retry_delay, certificate_verification_failed
 from .mirrors import check_mirrors, urls_for, try_next_mirror
 
 
@@ -46,6 +46,8 @@ def download_error(exc):
         return f'{type(exc).__name__}: the network operation timed out.'
     if isinstance(exc, httpx.ConnectError):
         detail = re.sub(r'https?://[^\s]+', '[private URL]', str(exc))[:400]
+        if certificate_verification_failed(exc):
+            return f'ConnectError: {detail}. TLS certificate verification failed. Use a valid alternative mirror or edit this item’s download URL.'
         return f'ConnectError: {detail or "could not connect to the download server"}'
     if isinstance(exc, httpx.HTTPError):
         return f'{type(exc).__name__}: download connection or HTTP protocol failed.'

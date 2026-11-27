@@ -5,6 +5,7 @@ import re
 import time
 from urllib.parse import urlsplit
 import httpx
+from .retries import certificate_verification_failed
 
 MAX_MIRRORS = 32
 
@@ -76,8 +77,8 @@ def check_mirrors(client, item, project_url, cancel=lambda: None, progress=lambd
             reason = _probe(client, url, project_url, cancel, deadline)
         except httpx.TimeoutException:
             reason = 'network timeout'
-        except httpx.HTTPError:
-            reason = 'connection or HTTP failure'
+        except httpx.HTTPError as exc:
+            reason = 'TLS certificate verification failed' if certificate_verification_failed(exc) else 'connection or HTTP failure'
         except (ValueError, httpx.InvalidURL) as exc:
             if isinstance(exc, MirrorCheckError):
                 raise

@@ -1,11 +1,25 @@
 """Bounded retries for transient failures, respecting upstream backoff."""
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+import ssl
 import httpx
+
+
+def certificate_verification_failed(error):
+    """HTTP clients may wrap SSL errors or preserve only their OpenSSL message."""
+    seen = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        if isinstance(error, ssl.SSLCertVerificationError) or 'CERTIFICATE_VERIFY_FAILED' in str(error).upper():
+            return True
+        error = error.__cause__ or error.__context__
+    return False
 
 
 def retry_delay(error, attempt):
     """None means stop; never shorten a server's requested wait to our budget."""
+    if certificate_verification_failed(error):
+        return None
     if isinstance(error, httpx.HTTPStatusError):
         response = error.response
         if response.status_code not in {408, 429, 500, 502, 503, 504}:
