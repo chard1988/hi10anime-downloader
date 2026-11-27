@@ -18,8 +18,7 @@ export function useApplication(query: QueueQuery) {
     controller: AbortController
   } | null>(null)
   const actionLock = useRef(false),
-    mounted = useRef(true),
-    lastError = useRef('')
+    mounted = useRef(true)
   stateRef.current = state
   queryRef.current = query
   const lock = useCallback(() => {
@@ -51,15 +50,26 @@ export function useApplication(query: QueueQuery) {
         try {
           const result = await api<StateResponse>('/api/state?' + params, undefined, request.signal)
           if (!mounted.current || request.signal.aborted) return
-          const next = mergeState(stateRef.current, result)
+          const previous = stateRef.current
+          const next = mergeState(previous, result)
           stateRef.current = next
           setState(next)
           setLocked(false)
           setConnectionError('')
-          const message = [next.job.error, next.download_job.error].filter(Boolean).join(' ')
-          if (message && message !== lastError.current)
-            toast.add({ title: 'Operation needs attention', description: message, type: 'error' })
-          lastError.current = message
+          // Initial snapshots include historical failures. Only announce a new
+          // failure observed after loading, independently for each worker.
+          if (previous) {
+            for (const worker of ['job', 'download_job'] as const) {
+              const job = next[worker],
+                before = previous[worker]
+              if (job.error && (job.id !== before.id || job.error !== before.error))
+                toast.add({
+                  title: 'Operation needs attention',
+                  description: job.error,
+                  type: 'error',
+                })
+            }
+          }
         } catch (error) {
           if (request.signal.aborted || !mounted.current) return
           if (error instanceof ApiError && error.status === 401) lock()

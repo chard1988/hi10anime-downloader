@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useApplication } from '@/hooks/use-application'
+import { toast } from '@/components/ui/toast'
 import { api, ApiError } from '@/lib/api'
 import type { QueueQuery, StateResponse } from '@/types'
 vi.mock('@/components/ui/toast', () => ({ toast: { add: vi.fn() } }))
@@ -29,7 +30,10 @@ function deferred<T>() {
   const promise = new Promise<T>((done) => (resolve = done))
   return { promise, resolve }
 }
-afterEach(() => mocked.mockReset())
+afterEach(() => {
+  mocked.mockReset()
+  vi.mocked(toast.add).mockClear()
+})
 describe('application request lifecycle', () => {
   it('shares in-flight polls and aborts them on unmount', async () => {
     const request = deferred<StateResponse>()
@@ -97,5 +101,71 @@ describe('mutations', () => {
     })
     expect(hook.result.current.pending).toBeNull()
     expect(mocked).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('background error notifications', () => {
+  const failed = {
+    ...response,
+    job: { ...response.job, id: 'old-login', error: 'Login browser failed' },
+  }
+  it('does not announce a historical failure on initial load or browser reload', async () => {
+    mocked.mockResolvedValue(failed)
+    const first = renderHook(() => useApplication(query))
+    await waitFor(() => expect(first.result.current.state?.job.error).toBe('Login browser failed'))
+    expect(toast.add).not.toHaveBeenCalled()
+    first.unmount()
+    const reloaded = renderHook(() => useApplication(query))
+    await waitFor(() =>
+      expect(reloaded.result.current.state?.job.error).toBe('Login browser failed'),
+    )
+    expect(toast.add).not.toHaveBeenCalled()
+  })
+  it('announces each newly failed operation once, including identical retry errors', async () => {
+    const running = {
+      ...failed,
+      job: { ...failed.job, id: 'new-login', running: true, error: null },
+    }
+    const failure = {
+      ...running,
+      job: { ...running.job, running: false, error: 'Login browser failed' },
+    }
+    mocked.mockResolvedValueOnce(failed)
+    const hook = renderHook(() => useApplication(query))
+    await waitFor(() => expect(hook.result.current.state).not.toBeNull())
+    for (const state of [running, failure, failure]) {
+      mocked.mockResolvedValueOnce(state)
+      await act(async () => {
+        await hook.result.current.refresh()
+      })
+    }
+    expect(toast.add).toHaveBeenCalledTimes(1)
+    mocked.mockResolvedValueOnce({ ...failure, job: { ...failure.job, id: 'another-login' } })
+    await act(async () => {
+      await hook.result.current.refresh()
+    })
+    expect(toast.add).toHaveBeenCalledTimes(2)
+  })
+  it('does not replay the library failure when a download fails or recovers', async () => {
+    mocked.mockResolvedValueOnce(failed)
+    const hook = renderHook(() => useApplication(query))
+    await waitFor(() => expect(hook.result.current.state).not.toBeNull())
+    mocked.mockResolvedValueOnce({
+      ...failed,
+      download_job: { ...failed.download_job, id: 'batch', error: 'Download failed' },
+    })
+    await act(async () => {
+      await hook.result.current.refresh()
+    })
+    expect(toast.add).toHaveBeenCalledExactlyOnceWith({
+      title: 'Operation needs attention',
+      description: 'Download failed',
+      type: 'error',
+    })
+    mocked.mockResolvedValueOnce(failed)
+    await act(async () => {
+      await hook.result.current.refresh()
+    })
+    expect(toast.add).toHaveBeenCalledTimes(1)
   })
 })
