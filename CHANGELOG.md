@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Report incoming bytes without 1 MiB buffering so ongoing transfers can show
+  speed promptly; scale throttled chunks for responsive reporting at low limits.
+
 - Show live overall download speed in the Downloads bulk action toolbar, combining
   all active transfers with a bounded five-second rolling rate.
 

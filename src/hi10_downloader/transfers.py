@@ -11,8 +11,10 @@ def valid_settings(value):
 
 class BandwidthBudget:
     """Reserve time per chunk across all workers; no accumulated idle burst."""
-    def __init__(self, kbps, cancel, cancelled, clock=time.monotonic):
+    def __init__(self, kbps, cancel, cancelled, clock=time.monotonic, parallel_downloads=1):
         self.bytes_per_second = kbps * 1000 / 8
+        # Keep the combined reservation of one chunk per worker near 250 ms.
+        self.chunk_size = max(1, min(65536, int(self.bytes_per_second / parallel_downloads / 4))) if kbps else 65536
         self.cancel = cancel
         self.cancelled = cancelled
         self.clock = clock

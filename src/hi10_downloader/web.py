@@ -485,9 +485,11 @@ class Application(RuntimeState):
         with self.lock:
             settings = dict(self.download_job.get('transfer_settings', self.transfer_settings))
             self.download_job.update(total=len(targets), done=0)
-        budget = BandwidthBudget(settings['speed_limit_kbps'], self.download_cancel, Cancelled)
+        budget = BandwidthBudget(settings['speed_limit_kbps'], self.download_cancel, Cancelled,
+            parallel_downloads=settings['parallel_downloads'])
         if settings['parallel_downloads'] == 1:
-            return self._run_download_targets(targets, throttle=budget.consume if settings['speed_limit_kbps'] else None)
+            return self._run_download_targets(targets, throttle=budget.consume if settings['speed_limit_kbps'] else None,
+                chunk_size=budget.chunk_size)
         pending = Queue()
         for entry in targets:
             pending.put(entry)
@@ -503,7 +505,7 @@ class Application(RuntimeState):
                         except Empty:
                             return
                         self._run_download_targets([entry], individual=True, client=client, mirror_cache=mirror_cache,
-                            throttle=budget.consume if settings['speed_limit_kbps'] else None)
+                            throttle=budget.consume if settings['speed_limit_kbps'] else None, chunk_size=budget.chunk_size)
             except Exception:
                 self.download_cancel.set()
                 raise
@@ -530,7 +532,7 @@ class Application(RuntimeState):
                 self.write_index()
                 self.save_queue()
 
-    def _run_download_targets(self, targets, individual=False, throttle=None, client=None, mirror_cache=None):
+    def _run_download_targets(self, targets, individual=False, throttle=None, client=None, mirror_cache=None, chunk_size=None):
         from contextlib import nullcontext
         with self.lock:
             manifest = self.manifest()
@@ -622,6 +624,7 @@ class Application(RuntimeState):
                                     options = {'progress': progress}
                                     if throttle:
                                         options['throttle'] = throttle
+                                        options['chunk_size'] = chunk_size
                                     record = download_one(client, item, entry['project_url'], target, **options)
                                     with self.lock:
                                         manifest[key] = record

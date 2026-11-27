@@ -139,7 +139,7 @@ def file_folder(output: Path, project_folder: str, item: dict) -> Path:
     return folder
 
 
-def download_one(client: httpx.Client, item: dict, project_url: str, target: Path, progress=None, throttle=None) -> dict:
+def download_one(client: httpx.Client, item: dict, project_url: str, target: Path, progress=None, throttle=None, chunk_size=None) -> dict:
     if urlsplit(item["url"]).scheme not in {"http", "https"}:
         raise ValueError("Download URL must use HTTP or HTTPS")
     deadline = time.monotonic() + int(os.environ.get("HI10_DOWNLOAD_DEADLINE", "21600"))
@@ -170,7 +170,10 @@ def download_one(client: httpx.Client, item: dict, project_url: str, target: Pat
             checksum = hashlib.sha256()
             prefix = bytearray()
             with part.open("wb") as stream:
-                for chunk in response.iter_bytes(64 * 1024 if throttle else 1024 * 1024):
+                # Without a limiter, forward actual incoming chunks instead of
+                # buffering 1 MiB and hiding ongoing low-throughput transfers.
+                read_size = chunk_size if chunk_size is not None else (64 * 1024 if throttle else None)
+                for chunk in response.iter_bytes(read_size):
                     if len(prefix) < 4:
                         prefix.extend(chunk[:4 - len(prefix)])
                         if len(prefix) == 4 and prefix != b"\x1a\x45\xdf\xa3":

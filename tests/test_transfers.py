@@ -26,6 +26,14 @@ class BudgetTests(unittest.TestCase):
         budget.consume(500);self.assertAlmostEqual(clock.now,1.5)
         clock.now+=50
         budget.consume(1000);self.assertAlmostEqual(clock.now,52.5)
+    def test_low_limit_chunk_sizes_keep_all_workers_reporting_within_a_quarter_second(self):
+        for speed in (1,8,64,100,8000):
+            for workers in (1,2,8):
+                budget=BandwidthBudget(speed,Event(),Cancelled,parallel_downloads=workers)
+                self.assertGreater(budget.chunk_size,0)
+                self.assertLessEqual(budget.chunk_size,65536)
+                self.assertLessEqual(budget.chunk_size*workers/budget.bytes_per_second,.25)
+
     def test_unlimited_does_not_wait_and_stop_interrupts_wait(self):
         event=Event()
         budget=BandwidthBudget(0,event,Cancelled)
@@ -106,7 +114,7 @@ class TransferTests(unittest.TestCase):
         self.assertEqual(self.app.download_job['done'],2)
     def test_shared_budget_is_used_for_every_limited_transfer(self):
         self.settings(8000,2);self.app.queue([self.p['id']]);calls=[]
-        def download(client,item,referer,target,progress=None,throttle=None):
+        def download(client,item,referer,target,progress=None,throttle=None,chunk_size=None):
             calls.append(throttle);throttle(4);target.write_bytes(b'\x1a\x45\xdf\xa3');return {'url':item['url'],'size':4,'sha256':digest(target)}
         with patch.object(self.app,'verify'),patch('hi10_downloader.web.make_client',self.clients),patch('hi10_downloader.web.download_one',side_effect=download):
             self.app.start_downloads();wait(self.app)
@@ -185,3 +193,33 @@ class TransferRateTests(unittest.TestCase):
         self.assertLessEqual(len(rate.samples),21)
         self.assertGreater(rate.speed(),0)
         now[0]+=6;self.assertEqual(rate.speed(),0)
+
+
+class StreamingSpeedTests(unittest.TestCase):
+    setUp=test_runtime.RuntimeTests.setUp
+    tearDown=test_runtime.RuntimeTests.tearDown
+
+    def test_rate_updates_before_one_megabyte_has_arrived(self):
+        ready,release=Event(),Event()
+        class SlowStream(httpx.SyncByteStream):
+            def __iter__(self):
+                yield b'\x1a\x45\xdf\xa3'+b'x'*(16384-4)
+                yield b'x'*16384
+                ready.set()
+                release.wait(3)
+                yield b'x'*16384
+        self.app.queue([self.p['id']]);self.app.items=self.app.items[:1];self.app.save_queue()
+        def client(_):return httpx.Client(transport=httpx.MockTransport(lambda r:httpx.Response(200,stream=SlowStream())))
+        try:
+            with patch.object(self.app,'verify'),patch('hi10_downloader.web.make_client',client):
+                self.app.start_downloads()
+                self.assertTrue(ready.wait(2))
+                from hi10_downloader.server import application
+                with httpx.Client(transport=httpx.WSGITransport(app=application(self.app)),base_url='http://local.test') as api_client:
+                    self.assertEqual(api_client.post('/api/unlock',json={'password':'test-password'}).status_code,200)
+                    snapshot=api_client.get('/api/state').json()
+                self.assertTrue(snapshot['download_job']['running'])
+                self.assertGreater(snapshot['download_job']['speed_bytes_per_second'],0)
+                self.assertEqual(snapshot['downloads'][0]['bytes'],32768)
+                release.set();wait(self.app)
+        finally:release.set();wait(self.app)

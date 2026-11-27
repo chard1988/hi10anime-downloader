@@ -245,7 +245,10 @@ Stop cancels active transfers and retains pending files. Parallel workers preser
 per-file failures and serialize queue/manifest writes. More workers consume more
 network connections, memory and disk bandwidth.
 
-Limiting uses a shared cancellable byte budget with 64 KiB read chunks. Socket and
+Limiting uses a shared cancellable byte budget with read chunks up to 64 KiB.
+At low limits, chunks shrink so a reservation from every worker fits within
+roughly 250 ms. Unlimited downloads report incoming chunks without buffering
+1 MiB before updating their progress. Socket and
 HTTP buffering can create short bursts; this is an application throughput target,
 not a packet shaper. Metadata/mirror probes are outside the video byte budget.
 The existing six-hour per-file deadline still applies at low speed limits. Failed
