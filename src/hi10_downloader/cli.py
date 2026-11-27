@@ -15,7 +15,7 @@ from .parsing import parse_project, project_links, safe_name, mirror_sources
 from .network import client as safe_client, bounded_page
 from .lifecycle import ServiceLocks
 from . import __version__, schema
-from .mirrors import check_mirrors, urls_for, try_next_mirror, MirrorCheckError
+from .mirrors import check_mirrors, try_next_mirror, MirrorCheckError
 
 BASE = "https://hi10anime.com"
 LIST_URL = BASE + "/projects/all-projects"
@@ -244,7 +244,7 @@ def _download(args) -> None:
                 if not record and receipt.exists():
                     record = load_json(receipt)
                 if target.exists():
-                    if record and record["url"] in urls_for(item) and target.stat().st_size == record["size"] and digest(target) == record["sha256"]:
+                    if record and target.stat().st_size == record["size"] and digest(target) == record["sha256"]:
                         manifest[key] = record
                         save_json(manifest_path, manifest)
                         clear_receipt(target)

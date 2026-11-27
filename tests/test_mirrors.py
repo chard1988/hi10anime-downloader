@@ -291,3 +291,8 @@ class CliMirrorTests(unittest.TestCase):
             self.assertEqual(len([r for r in requested if 'range' not in r.headers]),1)
             self.assertEqual(next(iter(json.loads((args.output/'hi10-manifest.json').read_text()).values()))['url'],LINKS[2])
             with patch('hi10_downloader.cli.make_client',return_value=httpx.Client(transport=httpx.MockTransport(lambda r:self.fail('Unexpected rerun request')))),redirect_stdout(io.StringIO()):_download(args)
+            for variant in p['variants']:
+                variant['url']=variant['url'].replace('mirror-', 'replacement-')
+            p['files']=select_files(p['variants'])
+            save_json(args.plan,{'version':1,'projects':[p]})
+            with patch('hi10_downloader.cli.make_client',return_value=httpx.Client(transport=httpx.MockTransport(lambda r:self.fail('Changed mirrors must not redownload a verified file')))),redirect_stdout(io.StringIO()):_download(args)

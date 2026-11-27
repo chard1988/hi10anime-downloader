@@ -60,3 +60,40 @@ class RescanCompletedTests(unittest.TestCase):
         (self.app.output / first['folder'] / first['filename']).unlink()
         self.app.items.remove(first)
         self.assertEqual(self.app.queue([self.p['id']])['added'], 1)
+
+    def test_changed_mirror_does_not_erase_completed_status_after_rescan(self):
+        first = self.finish_first_file()
+        self.app.items.remove(first)
+        changed_page = PAGE.replace('https://mirror.test/', 'https://replacement.test/')
+        with patch.object(self.app, 'verify'), patch('hi10_downloader.web.make_client', return_value=httpx.Client()), \
+                patch('hi10_downloader.web.fetch_page', return_value=changed_page), \
+                patch.object(self.app.cancel, 'wait', return_value=False):
+            self.app.scan_projects([self.p['id']])
+        summary = self.app.summary_for(self.p)
+        self.assertEqual(summary['complete'], 1)
+        self.assertEqual(summary['remaining'], 1)
+        self.assertEqual(self.app.queue([self.p['id']])['added'], 0)
+
+    def test_existing_queue_verifies_local_file_when_mirror_changes(self):
+        first = self.finish_first_file()
+        first['file'] = dict(first['file'], url='https://replacement.test/01_1080p.mkv')
+        first['status'] = 'failed'
+        self.app.items = [first]
+        with patch('hi10_downloader.web.make_client', return_value=httpx.Client(transport=httpx.MockTransport(
+                lambda request: self.fail('Verified local file must not use a mirror')))):
+            self.app.run_downloads()
+        self.assertEqual(first['status'], 'complete')
+        self.assertEqual(first['message'], 'Verified existing file')
+
+    def test_changed_file_is_not_accepted_after_mirror_changes(self):
+        first = self.finish_first_file()
+        first['file'] = dict(first['file'], url='https://replacement.test/01_1080p.mkv')
+        first['status'] = 'failed'
+        self.app.items = [first]
+        target = self.app.output / first['folder'] / first['filename']
+        target.write_bytes(b'x' * target.stat().st_size)
+        with patch('hi10_downloader.web.make_client', return_value=httpx.Client(transport=httpx.MockTransport(
+                lambda request: self.fail('Changed local file must not be overwritten')))):
+            self.app.run_downloads()
+        self.assertEqual(first['status'], 'failed')
+        self.assertIn('untracked or changed', first['message'])

@@ -30,7 +30,7 @@ from . import schema, __version__
 from .lifecycle import ServiceLocks
 from .routes import Routes
 from .retries import retry_delay, certificate_verification_failed
-from .mirrors import check_mirrors, urls_for, try_next_mirror
+from .mirrors import check_mirrors, try_next_mirror
 
 
 class Cancelled(Exception):
@@ -282,7 +282,8 @@ class Application(RuntimeState):
         target = child_path(file_folder(self.output, project['folder'], item), item['filename'])
         key = str(target.relative_to(self.output))
         record = manifest.get(key)
-        return bool(record and record['url'] in urls_for(item) and target.is_file() and target.stat().st_size == record['size'])
+        # A mirror URL is provenance, not the identity of a file already on disk.
+        return bool(record and target.is_file() and target.stat().st_size == record['size'])
 
     def summary_for(self, project):
         project_id = project['id']
@@ -605,7 +606,7 @@ class Application(RuntimeState):
                             receipt = target.with_name(target.name + '.receipt.json')
                             if not record and receipt.exists():
                                 record = load_json(receipt)
-                            if record and record['url'] in urls_for(item) and target.stat().st_size == record['size'] and digest(target) == record['sha256']:
+                            if record and target.stat().st_size == record['size'] and digest(target) == record['sha256']:
                                 with self.lock:
                                     manifest[key] = record
                                     self.save_manifest(manifest, entry.get('project_id') or ident(entry['project_url']))

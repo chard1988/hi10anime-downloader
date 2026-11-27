@@ -198,6 +198,10 @@ Requeuing skips files recognized as complete by the saved manifest and present a
 their recorded destination, even after completed queue history is cleared. Missing
 files can be queued again. Rescans retain the project's existing destination folder
 when its page title changes. This does not merge different filenames or releases.
+Changing a mirror URL does not reset completion for the same recorded local path.
+Download workers verify the recorded size and SHA256 before reusing an existing
+file, regardless of its old source URL. Changed or untracked files are preserved
+and reported for attention.
 Older CLI plans can reuse their recorded variants, without changing queued quality.
 
 Link-check progress and the final count are shown in expanded queue-row details.
