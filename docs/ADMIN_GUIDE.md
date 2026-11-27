@@ -226,3 +226,27 @@ scheduler pass, with a 15-minute minimum interval. Limits: 200 monitored project
 queue/files but prevents future automatic starts. A currently transferring file
 may finish. Re-enabling an unmonitored project resets its tracked history; verified
 files and existing queue entries still prevent duplicates.
+
+## Download transfer settings
+
+In Downloads, Settings contains a saved download speed limit in kbps and a maximum
+parallel file count. The speed is a total budget shared by all transfers in the
+batch, measured in decimal kilobits per second (1,000 bits per kilobit). For example,
+8,000 kbps is approximately 1 MB/s; it is not 8,000 KB/s. Zero means unlimited.
+Allowed speed values are integers from 0 to 10,000,000; parallel count is 1 to 8.
+Defaults retain the prior behavior: unlimited bandwidth and one file at a time.
+
+Settings are kept privately in appdata/transfer-settings.json with schema checks,
+backup recovery and the existing durable transaction mechanism. Save transfer
+settings does not start downloads or alter a schedule. A batch captures its limits
+when started; edits apply to the next batch, including manual, selected, retry,
+scheduled and monitoring starts. Stop and restart the batch to change its limits.
+Stop cancels active transfers and retains pending files. Parallel workers preserve
+per-file failures and serialize queue/manifest writes. More workers consume more
+network connections, memory and disk bandwidth.
+
+Limiting uses a shared cancellable byte budget with 64 KiB read chunks. Socket and
+HTTP buffering can create short bursts; this is an application throughput target,
+not a packet shaper. Metadata/mirror probes are outside the video byte budget.
+The existing six-hour per-file deadline still applies at low speed limits. Failed
+or interrupted files retain the existing manual retry/restart behavior.

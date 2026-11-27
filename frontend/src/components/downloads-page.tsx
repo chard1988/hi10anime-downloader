@@ -552,12 +552,20 @@ function DownloadSettings({
 }) {
   const [date, setDate] = useState(''),
     state = app.state!
+  const [speed, setSpeed] = useState(0),
+    [parallel, setParallel] = useState(1)
+  useEffect(() => {
+    if (open) {
+      setSpeed(state.transfer_settings.speed_limit_kbps)
+      setParallel(state.transfer_settings.parallel_downloads)
+    }
+  }, [open])
   return (
     <FormSheet
       open={open}
       onOpenChange={onOpenChange}
       title="Download settings"
-      description="Choose when queued downloads should start."
+      description="Set transfer limits and choose when queued downloads should start."
     >
       <div className="space-y-6">
         <div className="space-y-2">
@@ -569,6 +577,63 @@ function DownloadSettings({
             Change the host destination using the container’s /downloads mapping in unRAID.
           </p>
         </div>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void app.action(
+              '/api/downloads/settings',
+              { speed_limit_kbps: speed, parallel_downloads: parallel },
+              'Transfer limits saved. Changes apply to the next batch.',
+            )
+          }}
+        >
+          <div className="space-y-2">
+            <Label htmlFor="download-speed">Download speed limit (kbps)</Label>
+            <Input
+              id="download-speed"
+              type="number"
+              min={0}
+              max={10000000}
+              step={1}
+              required
+              value={speed}
+              onChange={(e) => setSpeed(Number(e.target.value))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Total limit shared across all downloads. 0 is unlimited. 1,000 kbps is approximately
+              125 KB/s.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="parallel-downloads">Maximum parallel downloads</Label>
+            <Input
+              id="parallel-downloads"
+              type="number"
+              min={1}
+              max={8}
+              step={1}
+              required
+              value={parallel}
+              onChange={(e) => setParallel(Number(e.target.value))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Download 1 to 8 files at a time. More downloads use more server resources.
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Saved across restarts. Changes apply to the next batch, including scheduled and
+            monitored downloads. Stop and restart a running batch to use new limits.
+          </p>
+          <Button type="submit" disabled={!!app.pending}>
+            {app.pending?.path === '/api/downloads/settings' ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <Save />
+            )}
+            Save transfer settings
+          </Button>
+        </form>
         <form
           className="space-y-4"
           onSubmit={(e) => {

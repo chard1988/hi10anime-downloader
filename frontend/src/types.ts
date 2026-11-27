@@ -77,6 +77,7 @@ export type AppState = {
   monitoring: Monitoring
   browser_active: boolean
   session: { saved: boolean; connected: boolean; status: string; message: string }
+  transfer_settings: { version: number; speed_limit_kbps: number; parallel_downloads: number }
   default_quality: number
   output: string
 }

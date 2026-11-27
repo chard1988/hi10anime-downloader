@@ -376,7 +376,7 @@ class Application(RuntimeState):
                     'download_groups': public_groups, 'download_page_total': page_total, 'download_group_total': len(groups),
                     'download_filtered_total': len(filtered), 'download_filter': download_filter,
                     'download_page': page, 'download_total': len(self.items), 'pending_count': self.pending_count(),
-                    'schedule': dict(self.schedule), 'monitoring': self.monitoring.public(), 'browser_active': bool(self.browser and self.browser.active),
+                    'transfer_settings': dict(self.transfer_settings), 'schedule': dict(self.schedule), 'monitoring': self.monitoring.public(), 'browser_active': bool(self.browser and self.browser.active),
                     'session': {'saved': self.state_path.exists(), 'connected': self.connected,
                                 'status': self.session_status, 'message': self.session_message},
                     'default_quality': self.catalog.get('default_quality', 0), 'output': str(self.output)}
@@ -474,16 +474,69 @@ class Application(RuntimeState):
                 self.verify()
                 self.run_downloads(targets)
             self.start_job('download', run)
-            self.download_job.update(source=source, total=len(targets))
+            self.download_job.update(source=source, total=len(targets), transfer_settings=dict(self.transfer_settings))
 
     def run_downloads(self, targets=None):
-        targets = targets if targets is not None else self.items
-        manifest = self.manifest()
-        mirror_project, mirror_index = object(), {}
+        from concurrent.futures import ThreadPoolExecutor
+        from queue import Queue, Empty
+        from .transfers import BandwidthBudget
+        targets = list(targets if targets is not None else self.items)
         with self.lock:
-            self.download_job['total'] = len(targets)
+            settings = dict(self.download_job.get('transfer_settings', self.transfer_settings))
+            self.download_job.update(total=len(targets), done=0)
+        budget = BandwidthBudget(settings['speed_limit_kbps'], self.download_cancel, Cancelled)
+        if settings['parallel_downloads'] == 1:
+            return self._run_download_targets(targets, throttle=budget.consume if settings['speed_limit_kbps'] else None)
+        pending = Queue()
+        for entry in targets:
+            pending.put(entry)
+        def worker():
+            try:
+                # Each worker owns a client and mirror index, reusing connections
+                # without sharing mutable per-file state between threads.
+                with make_client(self.state_path) as client:
+                    mirror_cache = {}
+                    while not self.download_cancel.is_set():
+                        try:
+                            entry = pending.get_nowait()
+                        except Empty:
+                            return
+                        self._run_download_targets([entry], individual=True, client=client, mirror_cache=mirror_cache,
+                            throttle=budget.consume if settings['speed_limit_kbps'] else None)
+            except Exception:
+                self.download_cancel.set()
+                raise
         try:
-            with make_client(self.state_path) as client:
+            with ThreadPoolExecutor(max_workers=settings['parallel_downloads'], thread_name_prefix='hi10-transfer') as pool:
+                futures = [pool.submit(worker) for _ in range(min(len(targets), settings['parallel_downloads']))]
+                errors = []
+                for future in futures:
+                    try:
+                        future.result()
+                    except Cancelled:
+                        pass
+                    except Exception as exc:
+                        errors.append(exc)
+                if errors:
+                    raise errors[0]  # Do not hide a worker failure behind a sibling's cancellation.
+            if self.download_cancel.is_set():
+                raise Cancelled()
+            with self.lock:
+                failed = sum(e['status'] == 'failed' for e in targets)
+                self.download_job['message'] = f'Batch finished · {failed} failed' if failed else 'All downloads complete'
+        finally:
+            with self.lock:
+                self.write_index()
+                self.save_queue()
+
+    def _run_download_targets(self, targets, individual=False, throttle=None, client=None, mirror_cache=None):
+        from contextlib import nullcontext
+        with self.lock:
+            manifest = self.manifest()
+        mirror_cache = mirror_cache if mirror_cache is not None else {}
+        mirror_project, mirror_index = mirror_cache.get('project', object()), mirror_cache.get('index', {})
+        try:
+            with (nullcontext(client) if client is not None else make_client(self.state_path)) as client:
                 for index, entry in enumerate(targets):
                     if self.download_cancel.is_set():
                         raise Cancelled()
@@ -520,6 +573,7 @@ class Application(RuntimeState):
                                 except (ValueError, OSError, KeyError):
                                     mirror_index = {}  # The queue can still use its original link.
                                 mirror_project = project_id
+                                mirror_cache.update(project=mirror_project, index=mirror_index)
                             sources = mirror_index.get((item['key'], item.get('resolution'), item.get('section_id')), [])
                             if sources:
                                 item = dict(item, mirrors=list(dict.fromkeys([item['url'], *sources])))
@@ -535,8 +589,9 @@ class Application(RuntimeState):
                             if not record and receipt.exists():
                                 record = load_json(receipt)
                             if record and record['url'] in urls_for(item) and target.stat().st_size == record['size'] and digest(target) == record['sha256']:
-                                manifest[key] = record
-                                self.save_manifest(manifest, entry.get('project_id') or ident(entry['project_url']))
+                                with self.lock:
+                                    manifest[key] = record
+                                    self.save_manifest(manifest, entry.get('project_id') or ident(entry['project_url']))
                                 clear_receipt(target)
                                 with self.lock:
                                     item['url'] = record['url']
@@ -558,9 +613,13 @@ class Application(RuntimeState):
                                 attempts = attempt + 1
                                 try:
                                     check_cancel()
-                                    record = download_one(client, item, entry['project_url'], target, progress=progress)
-                                    manifest[key] = record
-                                    self.save_manifest(manifest, entry.get('project_id') or ident(entry['project_url']))
+                                    options = {'progress': progress}
+                                    if throttle:
+                                        options['throttle'] = throttle
+                                    record = download_one(client, item, entry['project_url'], target, **options)
+                                    with self.lock:
+                                        manifest[key] = record
+                                        self.save_manifest(manifest, entry.get('project_id') or ident(entry['project_url']))
                                     clear_receipt(target)
                                     with self.lock:
                                         entry.update(status='complete', bytes=record['size'], total=record['size'], message=selection.message)
@@ -582,19 +641,21 @@ class Application(RuntimeState):
                             suffix = f' (after {attempts} attempts)' if attempts > 1 else ''
                             entry.update(status='failed', message=download_error(exc) + suffix)
                     with self.lock:
-                        self.download_job['done'] = index + 1
+                        self.download_job['done'] += 1
                         self.save_queue()
                     if self.download_cancel.wait(1):
                         raise Cancelled()
-            with self.lock:
-                failed = sum(e['status'] == 'failed' for e in targets)
-                self.download_job['message'] = f'Batch finished · {failed} failed' if failed else 'All downloads complete'
+            if not individual:
+                with self.lock:
+                    failed = sum(e['status'] == 'failed' for e in targets)
+                    self.download_job['message'] = f'Batch finished · {failed} failed' if failed else 'All downloads complete'
         finally:
             with self.lock:
                 for entry in targets:
                     if entry['status'] == 'downloading':
                         entry.update(status='interrupted', message='Stopped. Click Start downloads to continue.')
-                self.write_index()
+                if not individual:
+                    self.write_index()
                 self.save_queue()
 
     def login_browser(self):
@@ -637,6 +698,16 @@ class Application(RuntimeState):
                     self.cancel_schedule()
                 if job.get('source') == 'monitor' or target == 'scan' and job['kind'] == 'monitor':
                     self.monitoring.settings(True, self.monitoring.state['interval_minutes'])
+            return {}
+        if path == '/api/downloads/settings':
+            from .transfers import valid_settings
+            settings = {'version': 1, 'speed_limit_kbps': data.get('speed_limit_kbps'),
+                        'parallel_downloads': data.get('parallel_downloads')}
+            if not valid_settings(settings):
+                raise ValueError('Choose a speed from 0 to 10000000 kbps and 1 to 8 parallel downloads.')
+            with self.lock:
+                self.transfer_settings = settings
+                save_json(self.transfer_settings_path, settings)
             return {}
         if path.startswith('/api/monitoring/'):
             with self.lock:

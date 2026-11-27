@@ -111,6 +111,13 @@ def main():
                     assert page.get_by_role('button',name='View download link',exact=True).count()==1
                     page.get_by_role('button',name='Settings',exact=True).click()
                     page.get_by_label('Start at a later date and time',exact=True).wait_for()
+                    page.get_by_label('Download speed limit (kbps)',exact=True).fill('8000')
+                    page.get_by_label('Maximum parallel downloads',exact=True).fill('2')
+                    page.get_by_role('button',name='Save transfer settings',exact=True).click()
+                    expect(page.get_by_role('button',name='Save transfer settings',exact=True)).to_be_enabled()
+                    assert app.transfer_settings['speed_limit_kbps']==8000
+                    assert app.transfer_settings['parallel_downloads']==2
+
                     page.keyboard.press('Escape')
                     print('React fixture: queue search and settings passed',flush=True)
                     page.set_viewport_size({'width':390,'height':844})

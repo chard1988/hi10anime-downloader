@@ -115,7 +115,9 @@ Stop jobs first. Save URL keeps filename/destination, marks the item queued and 
 not start it. Manually edited links persist across restart/requeue. Viewing/opening
 a link is authenticated; private URLs are not included in ordinary status polls.
 
-Settings shows the container destination and scheduling picker. Change the host
+Settings shows the container destination, saved total speed limit (kbps), maximum
+parallel downloads (1–8), and scheduling picker. Defaults are unlimited speed and
+one file at a time. Changes apply to the next batch and survive restarts. Change the host
 folder through container mappings. Schedules persist and can run after an overdue
 restart; unscheduled manual queues do not auto-start. The container must be available at
 the chosen time. Closing the browser does not cancel background work.

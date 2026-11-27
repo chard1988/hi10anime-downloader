@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Saved total download speed limit in kbps and 1–8 parallel file transfers in the
+  download settings Sheet, with shared throttling, batch limits and cancellation.
+
 - Migrate the web interface to React and TypeScript with official shadcn Base UI
   dashboard/login blocks, Lucide icons, Velocity theme, and Light/Dark/System modes.
 - Searchable comboboxes, Sheets for forms, Toast feedback, and paginated project
